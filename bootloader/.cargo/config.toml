@@ -1,0 +1,7 @@
+[target.i586-pc-windows-msvc]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
