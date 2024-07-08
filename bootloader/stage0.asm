@@ -15,15 +15,16 @@ entry:
     out 0x92, al
 
     ; Make sure ds is set to 0 such that we can use the selector with a known value
-    mov ds, 0
+    xor ax, ax
+    mov ds, ax
 
     ; Load a 32-bit GDT
     lgdt [ds:pm_gdt]
 
     ; Set the CR0.PE to enable protected mode
-    xor al, al
-    mov al, 1
-    or cr0, al
+    xor eax, eax
+    mov eax, 1
+    mov cr0, eax
 
     ; Now that we are in protected mode, we can use a far jump to A:B, where A is a selector
     ; offset inside the GDT (in this case the second value) and B is the offset we got to from
@@ -79,7 +80,7 @@ pm_gdtr:
     dd pm_gdt
 
 ; Fill the rest of the bootloader with 0
-time 510-($-$$) db 0
+times 510-($-$$) db 0
 ; Tell the BIOS that this is a valid sector to be used as a bootloader by setting the last 2 bytes
 ; of the 512 bytes to 0x55 and 0xAA
 dw 0x55,0xAA
