@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+mod compiler_builtins;
+
 use core::panic::PanicInfo;
 
 #[no_mangle]
