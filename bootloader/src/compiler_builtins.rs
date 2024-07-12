@@ -34,3 +34,15 @@ pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mu
 
     dst
 }
+
+/// Divides 2 64-bit unsigned integers returning the integer part of the division.
+#[no_mangle]
+pub extern "C" fn _aulldiv(a: u64, b: u64) -> u64 {
+    a / b
+}
+
+/// Divides 2 64-bit unsigned integers, returning the remainder (modulo) of the division.
+#[no_mangle]
+pub extern "C" fn _aullrem(a: u64, b: u64) -> u64 {
+    a % b
+}
