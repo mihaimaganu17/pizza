@@ -35,6 +35,29 @@ pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mu
     dst
 }
 
+/// Compared byte string `s1` against byte string `s2`. Both strings are assumed to be `len` bytes
+/// long.
+#[no_mangle]
+pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> u8 {
+    let mut idx = 0;
+
+    // We assume the strings are the same
+    let mut diff = 0;
+
+    while idx < len {
+        // We mimic the C's behaviour in case we underflow.
+        diff = (*s1.add(idx)).wrapping_sub(*s2.add(idx));
+        // If out assumption is wrong, we return the difference
+        if diff != 0 {
+            return diff;
+        }
+
+        idx += 1;
+    }
+
+    diff
+}
+
 /// Divides 2 64-bit unsigned integers returning the integer part of the division.
 #[no_mangle]
 pub extern "C" fn _aulldiv(a: u64, b: u64) -> u64 {
@@ -46,3 +69,12 @@ pub extern "C" fn _aulldiv(a: u64, b: u64) -> u64 {
 pub extern "C" fn _aullrem(a: u64, b: u64) -> u64 {
     a % b
 }
+
+/// Internal CRT function. Used to handle structured exception frames.
+#[no_mangle]
+pub extern "C" fn __CxxFrameHandler3() -> *mut u8 {
+    panic!("__CxxFrameHandler3 called");
+}
+
+#[no_mangle]
+pub static _fltused: i32 = 0;
