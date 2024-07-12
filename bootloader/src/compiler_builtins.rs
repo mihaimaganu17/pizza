@@ -19,6 +19,18 @@ pub unsafe extern "C" fn memset(dest: *mut u8, value: i32, len: usize) -> *mut u
 pub unsafe extern "C" fn mainCRTStartup() -> i32 {
     // Notify the user that if it ever need this path of main execution, he has to implement it
     panic!("No mainCRTStartup implementation");
-    // Typical C error code
-    -1
+}
+
+/// Copies `len` bytes from memory area `src` to memory area `dst`. If `dst` and `src`.
+/// Applications in which `dst` and `src` might overlap should use `memmove` instead.
+#[no_mangle]
+pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mut u8 {
+    let mut idx = 0;
+
+    while idx < len {
+        *dst.add(idx) = *src.add(idx);
+        idx += 1;
+    }
+
+    dst
 }
