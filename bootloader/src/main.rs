@@ -7,7 +7,8 @@ use core::panic::PanicInfo;
 
 #[no_mangle]
 fn main(_argc: isize, _argv: *const *const u8) -> i32 {
-    panic!("Freaking out")
+    0
+    //panic!("Freaking out")
 }
 
 #[panic_handler]

@@ -1,6 +1,6 @@
 [target.i586-pc-windows-msvc]
 linker = "lld-link"
-rustflags = ["-C", "target-feature=+crt-static", "-C", "link-args=/nodefaultlib"]
+rustflags = ["-C", "link-args=/nodefaultlib"]
 
 [target.x86_64-pc-windows-msvc]
 

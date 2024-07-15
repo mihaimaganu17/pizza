@@ -1,7 +1,0 @@
-[workspace]
-members = [
-    "pizza-build",
-    "bootloader",
-]
-
-resolver = "2"

@@ -3,9 +3,5 @@
 version = 3
 
 [[package]]
-name = "bootloader"
-version = "0.1.0"
-
-[[package]]
 name = "pizza-build"
 version = "0.1.0"
