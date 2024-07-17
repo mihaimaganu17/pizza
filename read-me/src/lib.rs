@@ -1,3 +1,5 @@
+#![no_std]
+
 use core::array::TryFromSliceError;
 
 pub struct Reader<'a> {
@@ -7,7 +9,7 @@ pub struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     pub fn peek<P: Primitive>(&self) -> Result<P, ReaderError> {
-        let end = core::mem::size_of::<P>();
+        let end = self.idx.saturating_add(core::mem::size_of::<P>());
         P::read(self.bytes.get(self.idx..end)
             .ok_or(ReaderError::OutOfBounds(self.idx, self.bytes.len()))?)
     }
@@ -70,7 +72,7 @@ impl<'a> From<&'a [u8]> for Reader<'a> {
 
 #[derive(Debug)]
 pub enum ReaderError {
-    UnsufficientBytes(usize, usize),
+    InsufficientBytes(usize, usize),
     OutOfBounds(usize, usize),
     TryFromSliceError(TryFromSliceError),
 }
@@ -91,7 +93,7 @@ macro_rules! read_impl {
         impl Primitive for $typ {
             fn read(data: &[u8]) -> Result<Self, ReaderError> {
                 let len = core::mem::size_of::<Self>();
-                let bytes = data.get(..len).ok_or(ReaderError::UnsufficientBytes(len, data.len()))?;
+                let bytes = data.get(..len).ok_or(ReaderError::InsufficientBytes(len, data.len()))?;
                 let value = <$typ>::from_le_bytes(bytes.try_into()?);
                 Ok(value)
             }

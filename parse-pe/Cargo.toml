@@ -2,3 +2,7 @@
 name = "parse-pe"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+parseme = { version = "0.1", path = "../parseme" }
+read-me = { version = "0.1", path = "../read-me" }

@@ -1,12 +1,11 @@
 #![no_std]
 
-mod read;
 mod pe;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use read::Reader;
+    use read_me::Reader;
     use pe::Pe;
 
     #[test]
