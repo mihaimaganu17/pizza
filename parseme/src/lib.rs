@@ -1,13 +1,17 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, Fields};
+use proc_macro2::TokenStream as TokenStream2;
 
 #[proc_macro_derive(ReadMe)]
 pub fn derive(input: TokenStream) -> TokenStream {
-    let token_stream2 = proc_macro2::TokenStream::from(input);
+    let token_stream2 = TokenStream2::from(input);
     let input = syn::parse2::<syn::DeriveInput>(token_stream2).expect("Cannot parse input");
 
     let name = input.ident;
+
+    // Output token stream
+    let mut field_tokens = TokenStream2::new();
 
     match input.data {
         Data::Struct(data_struct) => {
@@ -21,23 +25,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         } else {
                             unimplemented!("Tuple fields are not implemented")
                         };
-                        /*
-                        let type_ident = match field.ty {
-                            Type::Path(path) => {
-                                
-                            }
-                            _ => unimplemented!("Fields of other type than `Type:Path` are no supported")
-                        }
-                        */
+
                         let type_ident = field.ty;
-                        let temp_tok = quote! {
-                            #[derive(Debug)]
-                            struct Builder {
-                                #ident: #type_ident
-                            }
-                        };
-                        return temp_tok.into();
-                        println!("{:#?}", temp_tok);
+                        field_tokens.extend(quote! { #ident: #type_ident, });
                     }
                 }
                 _ => unimplemented!("Unamed and unit fields are not implemented")
@@ -45,6 +35,14 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
         _ => unimplemented!("Current procedural macro is not implemented for `Enum` and `Union`")
     }
+
+    let temp_build = quote! {
+        #[derive(Debug)]
+        struct Builder {
+            #field_tokens
+        }
+    };
+    return temp_build.into();
 
     // Construct the `Primitive` trait implementation for this structure.
     let tokens = quote! {

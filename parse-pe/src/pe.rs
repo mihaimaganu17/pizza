@@ -30,7 +30,7 @@ impl Pe {
             return Err(PeError::PEMagic);
         }
 
-        let coff_header = reader.read::<CoffHeader>()?;
+        //let coff_header = reader.read::<CoffHeader>()?;
 
         Ok(Self)
     }
