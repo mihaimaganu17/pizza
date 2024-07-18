@@ -85,6 +85,9 @@ impl From<TryFromSliceError> for ReaderError {
 
 pub trait Primitive: Sized {
     fn read(data: &[u8]) -> Result<Self, ReaderError>;
+    // Returns the size on disk of the type implementing this trait. This is equivalent to the size
+    // of the structure in memory with align(1) -> alignment by 1 byte
+    fn size_on_disk(&self) -> usize;
 }
 
 #[macro_export]
@@ -96,6 +99,9 @@ macro_rules! read_impl {
                 let bytes = data.get(..len).ok_or(ReaderError::InsufficientBytes(len, data.len()))?;
                 let value = <$typ>::from_le_bytes(bytes.try_into()?);
                 Ok(value)
+            }
+            fn size_on_disk(&self) -> usize {
+                core::mem::size_of::<Self>()
             }
         }
     };

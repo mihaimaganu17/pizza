@@ -11,7 +11,10 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let name = input.ident;
 
     // Output token stream
-    let mut field_tokens = TokenStream2::new();
+    let mut read_expr_tokens = TokenStream2::new();
+    // Output token stream
+    let mut instantiate_tokens = TokenStream2::new();
+    let mut size_on_disk_tokens = TokenStream2::new();
 
     match input.data {
         Data::Struct(data_struct) => {
@@ -27,7 +30,15 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         };
 
                         let type_ident = field.ty;
-                        field_tokens.extend(quote! { #ident: #type_ident, });
+                        read_expr_tokens.extend(quote! {
+                            let #ident = reader.read::<#type_ident>()?;
+                        });
+                        instantiate_tokens.extend(quote! {
+                            #ident,
+                        });
+                        size_on_disk_tokens.extend(quote! {
+                            self.#ident.size_on_disk() +
+                        })
                     }
                 }
                 _ => unimplemented!("Unamed and unit fields are not implemented")
@@ -36,20 +47,20 @@ pub fn derive(input: TokenStream) -> TokenStream {
         _ => unimplemented!("Current procedural macro is not implemented for `Enum` and `Union`")
     }
 
-    let temp_build = quote! {
-        #[derive(Debug)]
-        struct Builder {
-            #field_tokens
-        }
-    };
-    return temp_build.into();
-
     // Construct the `Primitive` trait implementation for this structure.
     let tokens = quote! {
         impl read_me::Primitive for #name {
             fn read(data: &[u8]) -> Result<Self, ReaderError> {
-                // Test run
-                Err(ReaderError::InsufficientBytes(0, 0))
+                let mut reader = Reader::from(data);
+
+                #read_expr_tokens
+                Ok(#name {
+                    #instantiate_tokens
+                })
+            }
+
+            fn size_on_disk(&self) -> usize {
+                #size_on_disk_tokens 0
             }
         }
     };
