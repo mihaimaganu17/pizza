@@ -4,7 +4,10 @@ use syn::{Meta, Data, Fields, punctuated::Punctuated, Ident, Token, MetaNameValu
 use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::Parser;
 
-#[proc_macro_derive(ReadMe, attributes(from, handler))]
+#[proc_macro_derive(ReadMe, attributes(from, handler, option))]
+// TODO: Handle generics (Prio 1)
+// TODO: Handle arrays
+// TODO: Handle option
 pub fn derive(input: TokenStream) -> TokenStream {
     let token_stream2 = TokenStream2::from(input);
     let input = syn::parse2::<syn::DeriveInput>(token_stream2).expect("Cannot parse input");
@@ -45,6 +48,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 _ => unimplemented!("Unamed and unit fields are not implemented")
             }
         }
+        _ => unimplemented!("Current procedural macro is not implemented for `Enum` and `Union`"),
         Data::Enum(data_enum) => {
             for attr in input.attrs {
                 if let Meta::List(list) = attr.meta {
@@ -56,7 +60,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        _ => unimplemented!("Current procedural macro is not implemented for `Enum` and `Union`")
     }
 
     // Construct the `Primitive` trait implementation for this structure.

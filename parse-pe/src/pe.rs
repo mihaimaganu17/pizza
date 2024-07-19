@@ -1,4 +1,5 @@
 mod coff;
+mod opt;
 
 use coff::CoffHeader;
 use read_me::{Reader, ReaderError};
