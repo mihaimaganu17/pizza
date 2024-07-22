@@ -1,11 +1,10 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Meta, Data, Fields, punctuated::Punctuated, Ident, Token, MetaNameValue, GenericParam};
+use syn::{Meta, Data, Fields, punctuated::Punctuated, Ident, Token, MetaNameValue, GenericParam, Type};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::Parser;
 
 #[proc_macro_derive(ReadMe, attributes(from, handler, option))]
-// TODO: Handle generics (Prio 1)
 // TODO: Handle arrays
 // TODO: Handle option
 pub fn derive(input: TokenStream) -> TokenStream {
@@ -50,16 +49,43 @@ pub fn derive(input: TokenStream) -> TokenStream {
                             unimplemented!("Tuple fields are not implemented")
                         };
 
-                        let type_ident = field.ty;
-                        read_expr_tokens.extend(quote! {
-                            let #ident = reader.read::<#type_ident>()?;
-                        });
+                        let array_size = TokenStream2::new();
+
+                        let (read_type_expr, size_expr) = match field.ty {
+                            Type::Array(type_array) => {
+                                let temp_len = type_array.len;
+                                let temp_elem = type_array.elem;
+                                let len = quote! {
+                                    #temp_len * core::mem::size_of::<#temp_elem>()
+                                };
+                                (
+                                    quote! {
+                                        let slice = reader.read_bytes(#len)?;
+                                        let #ident = slice.try_into()?;
+                                    },
+                                    quote! {
+                                        #len
+                                    }
+                                )
+                            }
+                            _ =>{
+                                let type_ident = field.ty;
+                                (
+                                    quote! {
+                                        let #ident = reader.read::<#type_ident>()?;
+                                    },
+                                    quote! {
+                                        self.#ident.size_on_disk()
+                                    },
+                                )
+                            }
+                        };
+
+                        read_expr_tokens.extend(read_type_expr);
                         instantiate_tokens.extend(quote! {
                             #ident,
                         });
-                        size_on_disk_tokens.extend(quote! {
-                            self.#ident.size_on_disk() +
-                        })
+                        size_on_disk_tokens.extend(quote! { #size_expr + })
                     }
                 }
                 _ => unimplemented!("Unamed and unit fields are not implemented")

@@ -39,6 +39,8 @@ pub struct OptionalHeader<T: PeArch + Primitive> {
 
 #[derive(ReadMe)]
 pub struct Temp<T: Primitive> {
+    pub link_version: [u8; 2],
+    pub size: [u8; 10],
     pub addr: T,
 }
 

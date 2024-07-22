@@ -40,7 +40,7 @@ impl Pe {
 
         let temp = reader.read::<Temp<u16>>()?;
 
-        return Err(PeError::Bad(temp.addr)).unwrap();
+        return Err(PeError::Bad(temp.link_version)).unwrap();
 
         Ok(Self)
     }
@@ -51,7 +51,7 @@ pub enum PeError {
     ReaderError(ReaderError),
     MZMagic,
     PEMagic,
-    Bad(u16),
+    Bad([u8; 2]),
     TryFromIntError(core::num::TryFromIntError),
 }
 
