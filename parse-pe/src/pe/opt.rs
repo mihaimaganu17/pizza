@@ -1,6 +1,6 @@
 //! Module that defines and parses a PE Optional header
 use parseme::ReadMe;
-use read_me::{Reader, ReaderError};
+use read_me::{Reader, ReaderError, Primitive};
 
 /// PE32
 pub const PE32_MAGIC: u16 = 0x10b;
@@ -8,8 +8,7 @@ pub const PE32_MAGIC: u16 = 0x10b;
 pub const PE32_PLUS_MAGIC: u16 = 0x20b;
 
 #[derive(Debug)]
-#[derive(ReadMe)]
-pub struct OptionalHeader<T: PeArch, Primitive> {
+pub struct OptionalHeader<T: PeArch + Primitive> {
     magic: u16,
     linker_versions: [u8; 2],
     size_of_code: u32,
@@ -18,7 +17,7 @@ pub struct OptionalHeader<T: PeArch, Primitive> {
     addr_entry_point: u32,
     base_of_code: u32,
     // TODO
-    #[option = "u32"]
+    //#[option = "u32"]
     base_of_data: Option<u32>,
     image_base: T,
     section_aligments: u32,
@@ -38,7 +37,13 @@ pub struct OptionalHeader<T: PeArch, Primitive> {
     number_of_rva_and_sizes: u32,
 }
 
+#[derive(ReadMe)]
+pub struct Temp<T: Primitive> {
+    pub addr: T,
+}
+
 pub trait PeArch {}
 
+impl PeArch for u16 {}
 impl PeArch for u32 {}
 impl PeArch for u64 {}

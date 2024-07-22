@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Meta, Data, Fields, punctuated::Punctuated, Ident, Token, MetaNameValue};
+use syn::{Meta, Data, Fields, punctuated::Punctuated, Ident, Token, MetaNameValue, GenericParam};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::Parser;
 
@@ -14,11 +14,28 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let name = input.ident;
 
-    // Output token stream
+    // Token stream containing expression that use the reader to read each value from the structure
     let mut read_expr_tokens = TokenStream2::new();
-    // Output token stream
+    // Token stream containing instantiation for each field in the structure
     let mut instantiate_tokens = TokenStream2::new();
+    // Token stream containing expressions which compute the cumulative size of the structure based
+    // on the sizes of each of the containing fields.
     let mut size_on_disk_tokens = TokenStream2::new();
+    // Token stream containing a generic from the structure stored as a single ident
+    let mut generic_ident = TokenStream2::new();
+    // Token stream containing the generic and the traits it has to implement
+    let mut generic_traits = TokenStream2::new();
+
+    for (i, generic_param) in input.generics.params.iter().enumerate() {
+        match generic_param {
+            GenericParam::Type(type_param) => {
+                let ident = &type_param.ident;
+                generic_ident.extend(quote! { #ident });
+                generic_traits.extend(quote! { #type_param });
+            }
+            _ => unimplemented!("Lifetime and Const generic parameters are not supported"),
+        }
+    }
 
     match input.data {
         Data::Struct(data_struct) => {
@@ -62,9 +79,21 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
     }
 
+    let name_with_gen = if !generic_ident.is_empty() {
+        quote! { #name<#generic_ident> }
+    } else {
+        quote! { #name }
+    };
+
+    let impl_generic = if !generic_traits.is_empty() {
+        quote! { <#generic_traits> }
+    } else {
+        quote! {}
+    };
+
     // Construct the `Primitive` trait implementation for this structure.
     let tokens = quote! {
-        impl read_me::Primitive for #name {
+        impl #impl_generic read_me::Primitive for #name_with_gen {
             fn read(data: &[u8]) -> Result<Self, ReaderError> {
                 let mut reader = Reader::from(data);
 

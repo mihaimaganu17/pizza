@@ -16,7 +16,7 @@ pub struct CoffHeader {
     // immediately follows the symbol table.
     number_of_symbols: u32,
     // Size of the OptionalHeader, required for executable, but not for object files.
-    size_of_optional_header: u32,
+    size_of_optional_header: u16,
     // Attributes of the file
     characteristics: u16,
 }

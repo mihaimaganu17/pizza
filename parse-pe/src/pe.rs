@@ -36,6 +36,12 @@ impl Pe {
 
         let coff_header = reader.read::<CoffHeader>()?;
 
+        use opt::Temp;
+
+        let temp = reader.read::<Temp<u16>>()?;
+
+        return Err(PeError::Bad(temp.addr)).unwrap();
+
         Ok(Self)
     }
 }
@@ -45,6 +51,7 @@ pub enum PeError {
     ReaderError(ReaderError),
     MZMagic,
     PEMagic,
+    Bad(u16),
     TryFromIntError(core::num::TryFromIntError),
 }
 
