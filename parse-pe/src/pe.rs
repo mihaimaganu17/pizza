@@ -2,11 +2,15 @@ mod coff;
 mod opt;
 
 use coff::CoffHeader;
+use opt::OptionalHeader;
 use read_me::{Reader, ReaderError};
 use parseme::ReadMe;
 
 pub const MZ_MAGIC: &[u8; 2] = b"MZ";
 pub const PE_MAGIC: &[u8; 4] = b"PE\0\0";
+
+pub const OPT_PE32_MAGIC: u16 = 0x10b;
+pub const OPT_PE32_PLUS_MAGIC: u16 = 0x20b;
 
 #[derive(Debug)]
 pub struct Pe;
@@ -36,11 +40,16 @@ impl Pe {
 
         let coff_header = reader.read::<CoffHeader>()?;
 
-        use opt::Temp;
+        // Peek into the `OptionalHeader` magic to get the architecture (x86 or x64)
+        let opt_magic = reader.peek::<u16>()?;
 
-        let temp = reader.read::<Temp<u32>>()?;
-
-        return Err(PeError::Bad(temp.link_version)).unwrap();
+        let opt_header = if opt_magic == OPT_PE32_MAGIC {
+            reader.read::<OptionalHeader<u32>>()?;
+        } else if opt_magic == OPT_PE32_PLUS_MAGIC {
+            reader.read::<OptionalHeader<u64>>()?;
+        } else {
+            return Err(PeError::UnsupportedOptionalMagic(opt_magic));
+        };
 
         Ok(Self)
     }
@@ -51,7 +60,7 @@ pub enum PeError {
     ReaderError(ReaderError),
     MZMagic,
     PEMagic,
-    Bad([u8; 2]),
+    UnsupportedOptionalMagic(u16),
     TryFromIntError(core::num::TryFromIntError),
 }
 

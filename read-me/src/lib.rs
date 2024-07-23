@@ -135,6 +135,7 @@ read_impl!(u8, 1);
 read_impl!(u8, 2);
 read_impl!(u8, 10);
 read_impl!(u16);
+read_impl!(u16, 6);
 read_impl!(u32);
 read_impl!(u32, 1);
 read_impl!(u32, 2);
