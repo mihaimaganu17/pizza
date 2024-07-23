@@ -1,8 +1,10 @@
 mod coff;
 mod opt;
+mod sh;
 
 use coff::CoffHeader;
-use opt::OptionalHeader;
+use opt::{OptionalHeader, OptionalHeaderType, DataDirectory};
+use sh::SectionHeader;
 use read_me::{Reader, ReaderError};
 use parseme::ReadMe;
 
@@ -44,13 +46,22 @@ impl Pe {
         let opt_magic = reader.peek::<u16>()?;
 
         let opt_header = if opt_magic == OPT_PE32_MAGIC {
-            reader.read::<OptionalHeader<u32>>()?;
+            OptionalHeader::PE32(reader.read::<OptionalHeaderType<u32>>()?)
         } else if opt_magic == OPT_PE32_PLUS_MAGIC {
-            reader.read::<OptionalHeader<u64>>()?;
+            OptionalHeader::PE32Plus(reader.read::<OptionalHeaderType<u64>>()?)
         } else {
             return Err(PeError::UnsupportedOptionalMagic(opt_magic));
         };
 
+        for _ in 0..opt_header.number_of_rva_and_sizes() {
+            let data_dir = reader.read::<DataDirectory>();
+        }
+
+        // Read a section
+        let section = reader.read::<SectionHeader>()?;
+
+
+        return Err(PeError::Bad(section.name));
         Ok(Self)
     }
 }
@@ -61,6 +72,7 @@ pub enum PeError {
     MZMagic,
     PEMagic,
     UnsupportedOptionalMagic(u16),
+    Bad([u8; 8]),
     TryFromIntError(core::num::TryFromIntError),
 }
 

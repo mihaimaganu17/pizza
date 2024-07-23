@@ -9,7 +9,7 @@ pub const PE32_PLUS_MAGIC: u16 = 0x20b;
 
 #[derive(Debug)]
 #[derive(ReadMe)]
-pub struct OptionalHeader<T: PeArch + Primitive> {
+pub struct OptionalHeaderType<T: PeArch + Primitive> {
     magic: u16,
     linker_versions: [u8; 2],
     size_of_code: u32,
@@ -19,12 +19,13 @@ pub struct OptionalHeader<T: PeArch + Primitive> {
     // Contains bases of code and bases of data
     bases: T::Bases,
     image_base: T,
-    section_aligments: u32,
+    section_aligment: u32,
     file_aligment: u32,
     // Various (OS, Image, Subsystem) versions
     versions: [u16; 6],
     win32_version: u32,
     size_of_image: u32,
+    size_of_headers: u32,
     checksum: u32,
     subsystem: u16,
     dll_characteristics: u16,
@@ -36,12 +37,32 @@ pub struct OptionalHeader<T: PeArch + Primitive> {
     number_of_rva_and_sizes: u32,
 }
 
+impl<T: PeArch + Primitive> OptionalHeaderType<T> {
+    pub fn number_of_rva_and_sizes(&self) -> u32 {
+        self.number_of_rva_and_sizes
+    }
+}
+
+#[derive(Debug)]
+pub enum OptionalHeader {
+    PE32(OptionalHeaderType<u32>),
+    PE32Plus(OptionalHeaderType<u64>),
+}
+
+impl OptionalHeader {
+    pub fn number_of_rva_and_sizes(&self) -> u32 {
+        match self {
+            Self::PE32(opt) => opt.number_of_rva_and_sizes(),
+            Self::PE32Plus(opt) => opt.number_of_rva_and_sizes(),
+        }
+    }
+}
+
+#[derive(Debug)]
 #[derive(ReadMe)]
-pub struct Temp<T: Primitive + PeArch> {
-    pub link_version: [u8; 2],
-    pub size: [u8; 10],
-    pub bases: T::Bases,
-    pub addr: T,
+pub struct DataDirectory {
+    rva: u32,
+    size: u32,
 }
 
 pub trait PeArch {

@@ -130,9 +130,12 @@ macro_rules! read_impl {
     };
 }
 
+// TODO: Macro to auto generate for arrays
+
 read_impl!(u8);
 read_impl!(u8, 1);
 read_impl!(u8, 2);
+read_impl!(u8, 8);
 read_impl!(u8, 10);
 read_impl!(u16);
 read_impl!(u16, 6);
