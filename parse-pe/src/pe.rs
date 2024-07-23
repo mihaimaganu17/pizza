@@ -38,7 +38,7 @@ impl Pe {
 
         use opt::Temp;
 
-        let temp = reader.read::<Temp<u16>>()?;
+        let temp = reader.read::<Temp<u32>>()?;
 
         return Err(PeError::Bad(temp.link_version)).unwrap();
 

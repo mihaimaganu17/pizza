@@ -75,11 +75,18 @@ pub enum ReaderError {
     InsufficientBytes(usize, usize),
     OutOfBounds(usize, usize),
     TryFromSliceError(TryFromSliceError),
+    Infallible(core::convert::Infallible),
 }
 
 impl From<TryFromSliceError> for ReaderError {
     fn from(err: TryFromSliceError) -> Self {
         Self::TryFromSliceError(err)
+    }
+}
+
+impl From<core::convert::Infallible> for ReaderError {
+    fn from(err: core::convert::Infallible) -> Self {
+        Self::Infallible(err)
     }
 }
 
@@ -105,11 +112,32 @@ macro_rules! read_impl {
             }
         }
     };
+    // Array handling
+    ($typ:ty, $size:literal) => {
+        impl Primitive for [$typ; $size] {
+            fn read(data: &[u8]) -> Result<Self, ReaderError> {
+                let mut reader = Reader::from(data);
+                let mut res = [0; $size];
+                for elem in res.iter_mut() {
+                    *elem = reader.read::<$typ>()?;
+                }
+                Ok(res)
+            }
+            fn size_on_disk(&self) -> usize {
+                core::mem::size_of::<Self>()
+            }
+        }
+    };
 }
 
 read_impl!(u8);
+read_impl!(u8, 1);
+read_impl!(u8, 2);
+read_impl!(u8, 10);
 read_impl!(u16);
 read_impl!(u32);
+read_impl!(u32, 1);
+read_impl!(u32, 2);
 read_impl!(u64);
 read_impl!(i8);
 read_impl!(i16);

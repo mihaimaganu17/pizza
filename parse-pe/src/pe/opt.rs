@@ -8,6 +8,7 @@ pub const PE32_MAGIC: u16 = 0x10b;
 pub const PE32_PLUS_MAGIC: u16 = 0x20b;
 
 #[derive(Debug)]
+#[derive(ReadMe)]
 pub struct OptionalHeader<T: PeArch + Primitive> {
     magic: u16,
     linker_versions: [u8; 2],
@@ -15,10 +16,8 @@ pub struct OptionalHeader<T: PeArch + Primitive> {
     size_of_init_data: u32,
     size_of_uninit_data: u32,
     addr_entry_point: u32,
-    base_of_code: u32,
-    // TODO
-    //#[option = "u32"]
-    base_of_data: Option<u32>,
+    // Contains bases of code and bases of data
+    bases: T::Bases,
     image_base: T,
     section_aligments: u32,
     file_aligment: u32,
@@ -38,14 +37,21 @@ pub struct OptionalHeader<T: PeArch + Primitive> {
 }
 
 #[derive(ReadMe)]
-pub struct Temp<T: Primitive> {
+pub struct Temp<T: Primitive + PeArch> {
     pub link_version: [u8; 2],
     pub size: [u8; 10],
+    pub bases: T::Bases,
     pub addr: T,
 }
 
-pub trait PeArch {}
+pub trait PeArch {
+    type Bases: Primitive;
+}
 
-impl PeArch for u16 {}
-impl PeArch for u32 {}
-impl PeArch for u64 {}
+impl PeArch for u32 {
+    type Bases = [u32; 2];
+}
+
+impl PeArch for u64 {
+    type Bases = [u32; 1];
+}

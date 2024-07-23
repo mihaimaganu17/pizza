@@ -5,7 +5,6 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::Parser;
 
 #[proc_macro_derive(ReadMe, attributes(from, handler, option))]
-// TODO: Handle arrays
 // TODO: Handle option
 pub fn derive(input: TokenStream) -> TokenStream {
     let token_stream2 = TokenStream2::from(input);
@@ -52,22 +51,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         let array_size = TokenStream2::new();
 
                         let (read_type_expr, size_expr) = match field.ty {
-                            Type::Array(type_array) => {
-                                let temp_len = type_array.len;
-                                let temp_elem = type_array.elem;
-                                let len = quote! {
-                                    #temp_len * core::mem::size_of::<#temp_elem>()
-                                };
-                                (
-                                    quote! {
-                                        let slice = reader.read_bytes(#len)?;
-                                        let #ident = slice.try_into()?;
-                                    },
-                                    quote! {
-                                        #len
-                                    }
-                                )
-                            }
                             _ =>{
                                 let type_ident = field.ty;
                                 (
