@@ -27,6 +27,15 @@ pub struct SectionHeader {
     characteristics: u32,
 }
 
+impl SectionHeader {
+    pub fn pointer_to_raw_data(&self) -> u32 {
+        self.pointer_to_raw_data
+    }
+    pub fn size_of_raw_data(&self) -> u32 {
+        self.size_of_raw_data
+    }
+}
+
 #[derive(Debug)]
 pub struct SectionHeadersIterator<'data> {
     bytes: &'data [u8],
