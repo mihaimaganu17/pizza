@@ -59,6 +59,11 @@ impl<'a> Reader<'a> {
         self.idx = offset;
         Ok(())
     }
+
+    /// Returns the current position of the cursor
+    pub fn offset(&self) -> usize {
+        self.idx
+    }
 }
 
 impl<'a> From<&'a [u8]> for Reader<'a> {

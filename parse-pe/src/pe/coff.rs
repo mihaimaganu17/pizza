@@ -21,6 +21,12 @@ pub struct CoffHeader {
     characteristics: u16,
 }
 
+impl CoffHeader {
+    pub fn number_of_sections(&self) -> u16 {
+        self.number_of_sections
+    }
+}
+
 #[derive(Debug)]
 // TODO: Not there yet
 //#[derive(ReadMe)]
