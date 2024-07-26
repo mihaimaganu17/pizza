@@ -8,6 +8,8 @@ mod tests {
     use read_me::Reader;
     use pe::Pe;
 
+    extern crate std;
+
     #[test]
     fn it_works() {
         let boot_bytes = include_bytes!(
@@ -19,5 +21,10 @@ mod tests {
                 assert!(&sh.name == b".text\0\0\0");
             }
         }
+
+        pe.access_sections(|section_header, bytes| {
+            std::println!("Section {:#?} has len {}", section_header, bytes.len());
+            Some(())
+        });
     }
 }

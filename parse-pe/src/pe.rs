@@ -84,14 +84,14 @@ impl<'data> Pe<'data> {
         )
     }
 
-    pub fn access_sections<F: Fn(&[u8]) -> Option<()>>(&self, f: F) -> Option<()> {
+    pub fn access_sections<F: Fn(&SectionHeader, &[u8]) -> Option<()>>(&self, f: F) -> Option<()> {
         for section in self.section_headers() {
             let section_start = usize::try_from(section.pointer_to_raw_data()).ok()?;
             let section_end = usize::try_from(section.pointer_to_raw_data()
                 .saturating_add(section.size_of_raw_data())).ok()?;
             let bytes = self.bytes.get(section_start..section_end)?;
 
-            f(bytes)?;
+            f(&section, bytes)?;
         }
 
         Some(())
