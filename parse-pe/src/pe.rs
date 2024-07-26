@@ -4,7 +4,7 @@ mod sh;
 
 use coff::CoffHeader;
 use opt::{OptionalHeader, OptionalHeaderType, DataDirectory};
-use sh::SectionHeader;
+use sh::{SectionHeader, SectionHeadersIterator};
 use read_me::{Reader, ReaderError};
 use parseme::ReadMe;
 
@@ -77,48 +77,13 @@ impl<'data> Pe<'data> {
     /// Returns an iterator over the section headers of this PE
     pub fn section_headers(&self) -> SectionHeadersIterator {
         // Offset of the sections
-        SectionHeadersIterator {
-            bytes: self.bytes,
-            offset: self.section_headers_offset,
-            number_of_sections: usize::from(self.coff_header.number_of_sections()),
-        }
+        SectionHeadersIterator::from(
+            self.bytes,
+            self.section_headers_offset,
+            usize::from(self.coff_header.number_of_sections()),
+        )
     }
 }
-
-#[derive(Debug)]
-pub struct SectionHeadersIterator<'data> {
-    bytes: &'data [u8],
-    offset: usize,
-    number_of_sections: usize,
-}
-
-impl<'data> Iterator for SectionHeadersIterator<'data> {
-    type Item = SectionHeader;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // If we already consumed all the bytes or we parsed all the section headers, return `None`
-        if self.offset >= self.bytes.len() || self.number_of_sections == 0 {
-            return None;
-        }
-
-        // Wrap the bytes into a reader, for easier use
-        let mut reader = Reader::from(self.bytes);
-        // Skip the already parsed bytes
-        reader.skip(self.offset);
-
-        if let Ok(section) = reader.read::<SectionHeader>() {
-            // First update the offset
-            self.offset = reader.offset();
-            // Also decrement the number of sections we still have to parse
-            self.number_of_sections = self.number_of_sections.saturating_sub(1);
-            // Return the section header
-            Some(section)
-        } else {
-            None
-        }
-    }
-}
-
 
 #[derive(Debug)]
 pub enum PeError {

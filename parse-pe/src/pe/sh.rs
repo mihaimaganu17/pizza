@@ -26,3 +26,47 @@ pub struct SectionHeader {
     // Flags with characteristics of the section
     characteristics: u32,
 }
+
+#[derive(Debug)]
+pub struct SectionHeadersIterator<'data> {
+    bytes: &'data [u8],
+    offset: usize,
+    number_of_sections: usize,
+}
+
+impl<'data> SectionHeadersIterator<'data> {
+    pub fn from(bytes: &'data [u8], offset: usize, number_of_sections: usize) -> Self {
+        Self {
+            bytes,
+            offset,
+            number_of_sections,
+        }
+    }
+}
+
+impl<'data> Iterator for SectionHeadersIterator<'data> {
+    type Item = SectionHeader;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // If we already consumed all the bytes or we parsed all the section headers, return `None`
+        if self.offset >= self.bytes.len() || self.number_of_sections == 0 {
+            return None;
+        }
+
+        // Wrap the bytes into a reader, for easier use
+        let mut reader = Reader::from(self.bytes);
+        // Skip the already parsed bytes
+        reader.skip(self.offset);
+
+        if let Ok(section) = reader.read::<SectionHeader>() {
+            // First update the offset
+            self.offset = reader.offset();
+            // Also decrement the number of sections we still have to parse
+            self.number_of_sections = self.number_of_sections.saturating_sub(1);
+            // Return the section header
+            Some(section)
+        } else {
+            None
+        }
+    }
+}
