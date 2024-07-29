@@ -1,6 +1,6 @@
 [target.i586-pc-windows-msvc]
 linker = "lld-link"
-rustflags = ["-C", "link-args=/nodefaultlib /base:0x700 /filealign:0x1000 /fixed /align:1"]
+rustflags = ["-C", "link-args=/nodefaultlib /base:0x6e00 /filealign:0x1000 /fixed /align:1"]
 
 [target.x86_64-pc-windows-msvc]
 
