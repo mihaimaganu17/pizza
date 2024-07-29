@@ -41,11 +41,13 @@ impl<T: PeArch + Primitive> OptionalHeaderType<T> {
     pub fn image_base(&self) -> T {
         self.image_base
     }
-}
 
-impl<T: PeArch + Primitive> OptionalHeaderType<T> {
     pub fn number_of_rva_and_sizes(&self) -> u32 {
         self.number_of_rva_and_sizes
+    }
+
+    pub fn addr_entry_point(&self) -> u32 {
+        self.addr_entry_point
     }
 }
 
@@ -60,6 +62,14 @@ impl OptionalHeader {
         match self {
             Self::PE32(opt) => opt.number_of_rva_and_sizes(),
             Self::PE32Plus(opt) => opt.number_of_rva_and_sizes(),
+        }
+    }
+
+    /// Return the RVA of the entry point
+    pub fn addr_entry_point(&self) -> u32 {
+        match self {
+            Self::PE32(opt) => opt.addr_entry_point(),
+            Self::PE32Plus(opt) => opt.addr_entry_point()
         }
     }
 

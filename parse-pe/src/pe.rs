@@ -74,6 +74,11 @@ impl<'data> Pe<'data> {
         })
     }
 
+    /// Returns the absolute virtual address of this PE's entry point
+    pub fn entry_point(&self) -> u64 {
+        self.opt_header.image_base().saturating_add(u64::from(self.opt_header.addr_entry_point()))
+    }
+
     /// Returns an iterator over the section headers of this PE
     pub fn section_headers(&self) -> SectionHeadersIterator {
         // Offset of the sections
