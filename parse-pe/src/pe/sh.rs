@@ -28,6 +28,12 @@ pub struct SectionHeader {
 }
 
 impl SectionHeader {
+    pub fn virtual_size(&self) -> u32 {
+        self.virtual_size
+    }
+    pub fn virtual_address(&self) -> u32 {
+        self.virtual_address
+    }
     pub fn pointer_to_raw_data(&self) -> u32 {
         self.pointer_to_raw_data
     }

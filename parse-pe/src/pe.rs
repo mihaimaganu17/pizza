@@ -84,14 +84,23 @@ impl<'data> Pe<'data> {
         )
     }
 
-    pub fn access_sections<F: Fn(&SectionHeader, &[u8]) -> Option<()>>(&self, f: F) -> Option<()> {
+    pub fn access_sections<F: Fn(usize, usize, &[u8]) -> Option<()>>(&self, f: F) -> Option<()> {
         for section in self.section_headers() {
             let section_start = usize::try_from(section.pointer_to_raw_data()).ok()?;
+            // Get the smallest size representation of the section in order to reduce memory
+            // footprint
+            let section_size = core::cmp::min(section.size_of_raw_data(), section.virtual_size());
             let section_end = usize::try_from(section.pointer_to_raw_data()
-                .saturating_add(section.size_of_raw_data())).ok()?;
+                .saturating_add(section_size)).ok()?;
             let bytes = self.bytes.get(section_start..section_end)?;
 
-            f(&section, bytes)?;
+            // Compute the absolute Virtual Address of this section
+            let section_base = usize::try_from(self.opt_header.image_base()
+                .saturating_add(u64::from(section.virtual_address())))
+                .ok()?;
+            let section_size = usize::try_from(section_size).ok()?;
+
+            f(section_base, section_size, bytes)?;
         }
 
         Some(())

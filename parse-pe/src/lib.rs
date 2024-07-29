@@ -22,8 +22,8 @@ mod tests {
             }
         }
 
-        pe.access_sections(|section_header, bytes| {
-            std::println!("Section {:#?} has len {}", section_header, bytes.len());
+        pe.access_sections(|section_base, section_size, bytes| {
+            std::println!("Section base {:#x?} has size {:#x?}", section_base, section_size);
             Some(())
         });
     }
