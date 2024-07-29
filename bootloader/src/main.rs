@@ -4,11 +4,18 @@
 mod compiler_builtins;
 
 use core::panic::PanicInfo;
+use core::arch::asm;
 
 #[no_mangle]
-fn main(_argc: isize, _argv: *const *const u8) -> i32 {
-    0
-    //panic!("Freaking out")
+fn entry() {
+    unsafe {
+        // https://wiki.osdev.org/Printing_To_Screen
+        core::ptr::write(0xB8000 as *mut u16, 0x0f4d);
+        asm!(
+            "cli",
+            "hlt",
+        );
+    }
 }
 
 #[panic_handler]

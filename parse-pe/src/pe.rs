@@ -89,7 +89,7 @@ impl<'data> Pe<'data> {
         )
     }
 
-    pub fn access_sections<F: Fn(usize, usize, &[u8]) -> Option<()>>(&self, f: F) -> Option<()> {
+    pub fn access_sections<F: FnMut(usize, usize, &[u8]) -> Option<()>>(&self, mut f: F) -> Option<()> {
         for section in self.section_headers() {
             let section_start = usize::try_from(section.pointer_to_raw_data()).ok()?;
             // Get the smallest size representation of the section in order to reduce memory

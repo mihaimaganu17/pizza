@@ -2,6 +2,8 @@
 
 mod pe;
 
+pub use pe::Pe;
+
 #[cfg(test)]
 mod tests {
     use super::*;

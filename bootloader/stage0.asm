@@ -43,9 +43,9 @@ pm_entry:
     mov fs, ax
     mov gs, ax
 
-    ; Loop for ever
-    cli
-    hlt
+    ; Jump to our Rust entry point
+    jmp entry_point
+
 ;--------------------------------------------------------------------------------------------------
 
 ; Global Descriptor Table for protected mode. Each entry is 8-bytes in size and referred to as a
@@ -83,4 +83,6 @@ pm_gdtr:
 times 510-($-$$) db 0
 ; Tell the BIOS that this is a valid sector to be used as a bootloader by setting the last 2 bytes
 ; of the 512 bytes to 0x55 and 0xAA
-dw 0x55,0xAA
+dw 0xaa55
+
+incbin "../pizza-build/build/pizza.flat"
