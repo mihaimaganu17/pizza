@@ -10,7 +10,7 @@ use core::arch::asm;
 fn entry() {
     unsafe {
         // https://wiki.osdev.org/Printing_To_Screen
-        core::ptr::write(0xB8000 as *mut u16, 0x0f4d);
+        core::ptr::write(0xB8000 as *mut u16, 0x0f45);
         asm!(
             "cli",
             "hlt",

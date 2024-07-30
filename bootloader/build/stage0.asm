@@ -19,11 +19,11 @@ entry:
     mov ds, ax
 
     ; Load a 32-bit GDT
-    lgdt [ds:pm_gdt]
+    lgdt [ds:pm_gdtr]
 
     ; Set the CR0.PE to enable protected mode
-    xor eax, eax
-    mov eax, 1
+    mov eax, cr0
+    or eax, 1
     mov cr0, eax
 
     ; Now that we are in protected mode, we can use a far jump to A:B, where A is a selector
@@ -63,13 +63,13 @@ pm_gdt:
     ; We want the flags to define a 32-bit protected mode segment (bit 2 set) and set the Limit
     ; unit in 1 byte block granularity (bit 3 set).
     ; For the access byte we want: 0b10011010
-    db 0xff,0xff,0x00,0x00,0x10,0x9a,0xcf,0x00
+    db 0xff,0xff,0x00,0x00,0x00,0x9a,0xcf,0x00
     ; Next-state (kernel) data segment mapping
     ; Base = 0x00500000
     ; Limit (
     ; Flags = 0b1100
     ; Access byte is: 0b10010010 (0x92)
-    db 0xff,0xff,0x00,0x00,0x50,0x92,0xcf,0x00
+    db 0xff,0xff,0x00,0x00,0x00,0x92,0xcf,0x00
 
 ; GDTR descriptor loaded using the LGDT assembly, which contains a size and a pointer to the GDT
 pm_gdtr:
@@ -83,6 +83,6 @@ pm_gdtr:
 times 510-($-$$) db 0
 ; Tell the BIOS that this is a valid sector to be used as a bootloader by setting the last 2 bytes
 ; of the 512 bytes to 0x55 and 0xAA
-dw 0xaa55
+db 0x55,0xAA
 
-incbin "../pizza-build/build/pizza.flat"
+incbin "pizza.flat"
