@@ -3,6 +3,11 @@ use std::{
     io::Write,
     process::Command,
 };
+use std::path::Path;
+
+// Actually this is a recommended size and not the maximum possible value
+const PXE_MAX_SIZE: u64 = 32 * 1024;
+
 
 fn main() {
     // First, build the bootloader
@@ -38,10 +43,12 @@ fn main() {
     // Get the entry point
     let entry_point = bootloader_pe.entry_point();
 
+    let boot_flat = Path::new("pizza.boot");
+
     // Call nasm to build the bootloader to be executed by the BIOS
     let nasm_build = Command::new("nasm")
         .current_dir("../bootloader/build")
-        .args(["-f", "bin", &format!("-Dentry_point={}", entry_point), "-o", "pizza.boot", "stage0.asm"])
+        .args(["-f", "bin", &format!("-Dentry_point={}", entry_point), "-o", boot_flat.to_str().unwrap(), "stage0.asm"])
         .output()
         .expect("Failed to compile bootloader with nasm");
 
@@ -50,5 +57,11 @@ fn main() {
         println!("Bootloader nasm compile error: {:?}", String::from_utf8(nasm_build.stderr));
     }
 
-    // Copy the new bootloader where the PXE server can access it
+    // Check the size of the bootloader
+    let size = std::fs::metadata("../bootloader/build/pizza.boot")
+        .expect("Failed to query bootfile metadata").len();
+
+    assert!( size < PXE_MAX_SIZE);
+
+    println!("PXE Remote.0 size: {}", size);
 }
