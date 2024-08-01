@@ -43,6 +43,9 @@ pm_entry:
     mov fs, ax
     mov gs, ax
 
+    ; Set up the stack
+    mov esp, 0x7c00
+
     ; Jump to our Rust entry point
     jmp entry_point
 
