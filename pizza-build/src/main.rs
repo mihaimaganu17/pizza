@@ -13,7 +13,7 @@ fn main() {
     // First, build the bootloader
     let build_bootloader = Command::new("cargo")
         .current_dir("../bootloader")
-        .args(["build", "--target", "i586-pc-windows-msvc"])
+        .args(["build", "--target", "i586-pc-windows-msvc", "--release"])
         .output()
         .expect("Failed to build bootloader!");
     // If the build status was not successful, print the error
