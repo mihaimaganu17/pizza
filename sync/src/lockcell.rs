@@ -2,7 +2,7 @@
 //! access to that type.
 use core::{
     cell::UnsafeCell,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -56,6 +56,12 @@ impl<'a, T> Deref for LockCellGuard<'a, T> {
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.lock_cell.inner.get() }
+    }
+}
+
+impl<'a, T> DerefMut for LockCellGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+       unsafe { &mut *self.lock_cell.inner.get() }
     }
 }
 
