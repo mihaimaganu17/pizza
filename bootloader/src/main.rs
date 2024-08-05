@@ -32,9 +32,6 @@ extern "C" fn entry() {
                 continue;
             }
             init_serial(port);
-            for i in 0x10..0x20 {
-                write_data(port, b'M');
-            }
         }
         core::ptr::write(0xB8000 as *mut u16, 0x0f4d);
         asm!(
