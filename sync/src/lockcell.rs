@@ -23,7 +23,9 @@ impl<T> LockCell<T> {
             release: AtomicUsize::new(0),
         }
     }
+}
 
+impl<T: ?Sized> LockCell<T> {
     /// Get exclusive access to the underlying inner `UnsafeCell`
     pub fn lock(&self) -> LockCellGuard<'_, T> {
         // Get the current ticket and increment for the next interation
@@ -42,11 +44,11 @@ impl<T> LockCell<T> {
     }
 }
 
-pub struct LockCellGuard<'a, T> {
+pub struct LockCellGuard<'a, T: ?Sized> {
     lock_cell: &'a LockCell<T>,
 }
 
-impl<'a, T> Drop for LockCellGuard<'a, T> {
+impl<'a, T: ?Sized> Drop for LockCellGuard<'a, T> {
     fn drop(&mut self) {
         // We incread the `release` ticket, such that the next [`lock`] call from `LockCell` is not
         // blocking
@@ -54,7 +56,7 @@ impl<'a, T> Drop for LockCellGuard<'a, T> {
     }
 }
 
-impl<'a, T> Deref for LockCellGuard<'a, T> {
+impl<'a, T: ?Sized> Deref for LockCellGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
