@@ -30,7 +30,10 @@ impl<T> LockCell<T> {
         let ticket = self.serving.fetch_add(1, Ordering::SeqCst);
 
         // While the current ticket is not the same as the released, keep blocking
-        while ticket != self.release.load(Ordering::SeqCst) {}
+        while ticket != self.release.load(Ordering::SeqCst) {
+            // Send a machine instruction to signal a running busy-wait spin-loop
+            core::hint::spin_loop();
+        }
 
         // If we are here, we have exclusive access
         LockCellGuard {
