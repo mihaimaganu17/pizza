@@ -16,7 +16,7 @@ pub struct LockCell<T: ?Sized> {
 
 impl<T> LockCell<T> {
     /// Create a new cell from `value`
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self {
             inner: UnsafeCell::new(value),
             serving: AtomicUsize::new(0),
@@ -43,6 +43,8 @@ impl<T: ?Sized> LockCell<T> {
         }
     }
 }
+
+unsafe impl<T: ?Sized> Sync for LockCell<T> {}
 
 pub struct LockCellGuard<'a, T: ?Sized> {
     lock_cell: &'a LockCell<T>,

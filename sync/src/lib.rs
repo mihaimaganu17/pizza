@@ -26,4 +26,23 @@ mod tests {
             assert!(0x1ee7 == *lock);
         }
     }
+
+    #[test]
+    fn static_lock_exclusive_access_and_mutability() {
+        static CELL_VAR: LockCell<usize> = LockCell::new(0xbeef);
+
+        {
+            let lock = CELL_VAR.lock();
+            assert!(0xbeef == *lock);
+        }
+        {
+            let mut lock = CELL_VAR.lock();
+            *lock = 0x1ee7;
+            assert!(0x1ee7 == *lock);
+        }
+        {
+            let lock = CELL_VAR.lock();
+            assert!(0x1ee7 == *lock);
+        }
+    }
 }
