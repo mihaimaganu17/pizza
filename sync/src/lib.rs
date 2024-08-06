@@ -30,7 +30,6 @@ mod tests {
     #[test]
     fn static_lock_exclusive_access_and_mutability() {
         static CELL_VAR: LockCell<usize> = LockCell::new(0xbeef);
-
         {
             let lock = CELL_VAR.lock();
             assert!(0xbeef == *lock);
@@ -44,5 +43,20 @@ mod tests {
             let lock = CELL_VAR.lock();
             assert!(0x1ee7 == *lock);
         }
+    }
+
+    // Test whether `UnsafeCell` drops the value before exitings scope
+    #[test]
+    #[should_panic]
+    fn test_unsafecell_drop() {
+        struct ToBeDropped;
+
+        impl Drop for ToBeDropped {
+            fn drop(&mut self) {
+                panic!("We are dropped");
+            }
+        }
+
+        let _var = LockCell::new(ToBeDropped);
     }
 }
