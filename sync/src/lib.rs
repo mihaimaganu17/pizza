@@ -59,4 +59,22 @@ mod tests {
 
         let _var = LockCell::new(ToBeDropped);
     }
+
+    // Testing dropping the variable while it is locked
+    #[test]
+    #[should_panic]
+    fn test_locked_var_drop() {
+        struct ToBeDropped;
+
+        impl Drop for ToBeDropped {
+            fn drop(&mut self) {
+                panic!("We are dropped");
+            }
+        }
+
+        let var = LockCell::new(ToBeDropped);
+        let _lock = var.lock();
+        // Should not be able to drop
+        // std::mem::drop(var)
+    }
 }
