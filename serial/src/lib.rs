@@ -4,7 +4,27 @@ use sync::LockCell;
 use cpu::x86::{out_u8, in_u8};
 
 pub struct Serial {
-    ports: [Option<LockCell<u16>>],
+    ports: [Option<LockCell<u16>>; 4],
+}
+
+impl Serial {
+    pub fn init() -> Self {
+        const INIT_PORT_VALUE: Option<LockCell<u16>> = None;
+        let mut ports = [INIT_PORT_VALUE; 4];
+        unsafe {
+            // https://wiki.osdev.org/Printing_To_Screen
+            let com_ptr: *const u16 = 0x0400 as *const u16;
+            for i in 0usize..4usize {
+                let port: u16 = unsafe { com_ptr.add(i).read() };
+                if port == 0 {
+                    continue;
+                }
+                init_serial(port);
+                ports[i] = Some(LockCell::new(port));
+            }
+        }
+        Self { ports }
+    }
 }
 
 // Initialize a serial communication port at `port`

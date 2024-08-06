@@ -16,3 +16,15 @@ pub fn in_u8(address: u16) -> u8 {
     }
     value
 }
+
+/// Disable interrupts and halt forever
+pub fn halt() -> ! {
+    loop {
+        unsafe {
+            asm!(
+                "cli",
+                "hlt",
+            );
+        }
+    }
+}
