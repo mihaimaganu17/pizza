@@ -72,6 +72,7 @@ fn write_data(port: u16, value: u8) {
     // Wait until we can transmit bytes
     while transmitter_empty(port) == 0 {}
 
+    // Write value to port
     out_u8(port, value);
 }
 
@@ -80,15 +81,12 @@ fn data_ready(port: u16) -> u8 {
     in_u8(port.saturating_add(5)) & 1
 }
 
-/// Broadcast write `value` to all known and initialized serial ports
-pub fn write(value: u8) {
-    let serial = SERIAL.lock();
-
-    for maybe_port in &serial.ports {
-        if let Some(port) = maybe_port {
-            write_data(*port, value);
-        }
-    }
+// Broadcast write `value` to all known and initialized serial ports
+fn write(port: u16, value: u8) {
+    // Write a CR prior to all LFs
+    if value == b'\n' { write_data(port, b'\r'); }
+    // Write the actual byte
+    write_data(port, value);
 }
 
 /// Broadcast write `bytes` to all known and initialized serial ports
@@ -98,7 +96,7 @@ pub fn write_bytes(bytes: &[u8]) {
     for value in bytes {
         for maybe_port in &serial.ports {
             if let Some(port) = maybe_port {
-                write_data(*port, *value);
+                write(*port, *value);
             }
         }
     }
