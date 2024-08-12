@@ -4,26 +4,31 @@ use sync::LockCell;
 use cpu::x86::{out_u8, in_u8};
 
 pub struct Serial {
-    ports: [Option<LockCell<u16>>; 4],
+    ports: [Option<u16>; 4],
 }
 
+/// Provides mutually exclusive global access to serial ports from COM1 to COM4
+static SERIAL: LockCell<Serial> = LockCell::new( Serial { ports: [None; 4] });
+
 impl Serial {
-    pub fn init() -> Self {
-        const INIT_PORT_VALUE: Option<LockCell<u16>> = None;
-        let mut ports = [INIT_PORT_VALUE; 4];
-        unsafe {
-            // https://wiki.osdev.org/Printing_To_Screen
-            let com_ptr: *const u16 = 0x0400 as *const u16;
-            for i in 0usize..4usize {
-                let port: u16 = unsafe { com_ptr.add(i).read() };
-                if port == 0 {
-                    continue;
-                }
-                init_serial(port);
-                ports[i] = Some(LockCell::new(port));
+    /// Initialize all found serial ports
+    pub fn init() {
+        // Lock the ports, such that no one can access them
+        let mut serial = SERIAL.lock();
+        // Go to the known address of where the COM port addresses are stored
+        let com_ptr: *const u16 = 0x0400 as *const u16;
+
+        for (id, port) in serial.ports.iter_mut().enumerate() {
+            // Go to the `i`th serial port
+            let port_addr: u16 = unsafe { com_ptr.add(id).read() };
+            // If null, ignore
+            if port_addr == 0 {
+                continue;
             }
+            // Initialize the port
+            init_serial(port_addr);
+            *port = Some(port_addr);
         }
-        Self { ports }
     }
 }
 
@@ -47,12 +52,11 @@ fn init_serial(port: u16) {
     out_u8(port.saturating_add(4), 0b11110);
 
     // Wait until we can transmit bytes
-    while transmitter_empty(port) == 0 {}
-    // Test serial chip (send byte 0x4d = M and check if serial returns the same byte)
-    out_u8(port, b'M');
+    write_data(port, b'M');
 
     // Wait until we can read
     while data_ready(port) == 0 {}
+    // Test we got the same byte
     assert!(in_u8(port) == b'M');
 
     // If the serial is not faulty, set it in normal operation mode
@@ -74,4 +78,33 @@ fn write_data(port: u16, value: u8) {
 // Check data ready bit is set, meaning we can read from the serial port
 fn data_ready(port: u16) -> u8 {
     in_u8(port.saturating_add(5)) & 1
+}
+
+/// Broadcast write `value` to all known and initialized serial ports
+pub fn write(value: u8) {
+    let serial = SERIAL.lock();
+
+    for maybe_port in &serial.ports {
+        if let Some(port) = maybe_port {
+            write_data(*port, value);
+        }
+    }
+}
+
+/// Broadcast write `bytes` to all known and initialized serial ports
+pub fn write_bytes(bytes: &[u8]) {
+    let serial = SERIAL.lock();
+
+    for value in bytes {
+        for maybe_port in &serial.ports {
+            if let Some(port) = maybe_port {
+                write_data(*port, *value);
+            }
+        }
+    }
+}
+
+/// Broadcast write `text` to all known and initialized serial ports
+pub fn write_str(text: &str) {
+    write_bytes(text.as_bytes());
 }
