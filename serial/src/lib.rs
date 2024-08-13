@@ -122,9 +122,7 @@ impl core::fmt::Write for SerialWriter {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
-        use core::fmt::Write;
-        let mut writer = serial::SerialWriter;
-        core::fmt::Write::write_fmt(&mut writer, core::format_args!($($arg)*))
+        core::fmt::Write::write_fmt(&mut $crate::SerialWriter, core::format_args!($($arg)*))
             .expect("Failed to print!");
     };
 }
@@ -135,9 +133,7 @@ macro_rules! println {
         $crate::print!("\n")
     };
     ($($arg:tt)*) => {
-        let mut writer = serial::SerialWriter;
-
-        core::fmt::Write::write_fmt(&mut writer,
+        core::fmt::Write::write_fmt(&mut $crate::SerialWriter,
             core::format_args!("{}\n", core::format_args!($($arg)*)))
             .expect("Failed to println!");
     };
