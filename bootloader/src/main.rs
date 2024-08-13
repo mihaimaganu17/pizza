@@ -5,11 +5,12 @@ mod compiler_builtins;
 
 use core::panic::PanicInfo;
 use cpu::x86::halt;
-use serial::Serial;
+use serial::{Serial, print};
 
 #[no_mangle]
 extern "C" fn entry() {
     Serial::init();
+    print!("Hello world!\n");
     halt();
 }
 

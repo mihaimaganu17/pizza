@@ -11,7 +11,9 @@ pub struct Serial {
 static SERIAL: LockCell<Serial> = LockCell::new( Serial { ports: [None; 4] });
 
 impl Serial {
-    /// Initialize all found serial ports
+    /// Initialize all found serial ports. This will initialize each port exactly once, regardless
+    /// of how many times it is called. The only way to re-initialize is to drop the `SERIAL`,
+    /// which means exiting the binary.
     pub fn init() {
         // Lock the ports, such that no one can access them
         let mut serial = SERIAL.lock();
@@ -21,8 +23,8 @@ impl Serial {
         for (id, port) in serial.ports.iter_mut().enumerate() {
             // Go to the `i`th serial port
             let port_addr: u16 = unsafe { com_ptr.add(id).read() };
-            // If null, ignore
-            if port_addr == 0 {
+            // If the port address is null, or it is already initialised, go to the next one
+            if port_addr == 0 || *port != None {
                 continue;
             }
             // Initialize the port
@@ -115,4 +117,13 @@ impl core::fmt::Write for SerialWriter {
         write_str(s);
         Ok(())
     }
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {
+        use core::fmt::Write;
+        let mut writer = serial::SerialWriter;
+        writer.write_fmt(core::format_args!($($arg)*)).expect("Failed to print");
+    };
 }
