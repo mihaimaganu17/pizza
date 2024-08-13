@@ -10,7 +10,6 @@ use serial::Serial;
 #[no_mangle]
 extern "C" fn entry() {
     Serial::init();
-    serial::write_str("Hello world!\n");
     halt();
 }
 

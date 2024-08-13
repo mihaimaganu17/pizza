@@ -89,8 +89,8 @@ fn write(port: u16, value: u8) {
     write_data(port, value);
 }
 
-/// Broadcast write `bytes` to all known and initialized serial ports
-pub fn write_bytes(bytes: &[u8]) {
+// Broadcast write `bytes` to all known and initialized serial ports
+fn write_bytes(bytes: &[u8]) {
     let serial = SERIAL.lock();
 
     for value in bytes {
@@ -102,7 +102,17 @@ pub fn write_bytes(bytes: &[u8]) {
     }
 }
 
-/// Broadcast write `text` to all known and initialized serial ports
-pub fn write_str(text: &str) {
+// Broadcast write `text` to all known and initialized serial ports
+fn write_str(text: &str) {
     write_bytes(text.as_bytes());
+}
+
+/// Writer for serial
+pub struct SerialWriter;
+
+impl core::fmt::Write for SerialWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        write_str(s);
+        Ok(())
+    }
 }
