@@ -12,11 +12,21 @@ extern "C" fn entry() {
     Serial::init();
     print!("Hello world!\n");
     println!("Hello world2!\n");
-    println!("An empty line above");
+    panic!("An empty line above");
     halt();
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic(info: &PanicInfo) -> ! {
+    if let Some(loc) = info.location() {
+        println!("System panic: {}:{}", loc.file(), loc.line());
+    } else {
+        println!("System panic: unknown location");
+    }
+    if let Some(p) = info.payload().downcast_ref::<&str>() {
+        println!("System panic: {p:?}");
+    } else {
+        println!("System panic: unknown reason");
+    }
+    halt()
 }
