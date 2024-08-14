@@ -110,6 +110,29 @@ impl<'data> Pe<'data> {
 
         Some(())
     }
+
+    /// Computes and returns the address bounds of the image: Image start and image end
+    pub fn image_bounds(&self) -> Option<(usize, usize)> {
+        let mut image_start = None;
+        let mut image_end = None;
+        self.access_sections(|base, size, bytes| {
+            let end = base.saturating_add(size);
+
+            if image_start.is_none() {
+                image_start = Some(base);
+            }
+
+            if image_end.is_none() {
+                image_end = Some(end);
+            }
+
+            // Lowest start and end we can get
+            image_start.map(|start| core::cmp::min(start, base));
+            image_end.map(|e| core::cmp::min(e, end));
+            Some(())
+        })?;
+        Some((image_start?, image_end?))
+    }
 }
 
 #[derive(Debug)]

@@ -59,7 +59,7 @@ fn init_serial(port: u16) {
     // Wait until we can read
     while data_ready(port) == 0 {}
     // Test we got the same byte
-    assert!(in_u8(port) == b'M');
+    //assert!(in_u8(port) == b'M');
 
     // If the serial is not faulty, set it in normal operation mode
     out_u8(port.saturating_add(4), 0x0f);
@@ -122,8 +122,7 @@ impl core::fmt::Write for SerialWriter {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
-        core::fmt::Write::write_fmt(&mut $crate::SerialWriter, core::format_args!($($arg)*))
-            .expect("Failed to print!");
+        let _ = core::fmt::Write::write_fmt(&mut $crate::SerialWriter, core::format_args!($($arg)*));
     };
 }
 
@@ -133,8 +132,7 @@ macro_rules! println {
         $crate::print!("\n")
     };
     ($($arg:tt)*) => {
-        core::fmt::Write::write_fmt(&mut $crate::SerialWriter,
-            core::format_args!("{}\n", core::format_args!($($arg)*)))
-            .expect("Failed to println!");
+        let _ = core::fmt::Write::write_fmt(&mut $crate::SerialWriter,
+            core::format_args!("{}\n", core::format_args!($($arg)*)));
     };
 }

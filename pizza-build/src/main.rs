@@ -1,6 +1,6 @@
 use parse_pe::Pe;
 use std::{
-    io::Write,
+    io::{Write, Seek, SeekFrom},
     process::Command,
 };
 use std::path::Path;
@@ -33,8 +33,17 @@ fn main() {
     let mut flat_file = std::fs::File::create("../bootloader/build/pizza.flat")
         .expect("Failed to create flatten PE bootloader");
 
+    let (image_start, image_end) = bootloader_pe
+        .image_bounds()
+        .expect("Failed to get image bounds");
+
     // Dump all the sections into the flat bootloader
     bootloader_pe.access_sections(|base, size, bytes| {
+        // Compute the offset into the file
+        let flat_offset = u64::try_from(base.saturating_sub(image_start))
+            .expect("Cannot convert to u64");
+        // Seek to that offset
+        flat_file.seek(SeekFrom::Start(flat_offset)).expect("Failed to seek");
         // Write the contents of the section into the flat bootloader file
         flat_file.write(bytes).ok()?;
         Some(())
