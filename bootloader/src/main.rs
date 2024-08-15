@@ -10,10 +10,6 @@ use serial::{Serial, print, println};
 #[no_mangle]
 extern "C" fn entry() {
     Serial::init();
-    print!("Hello world!\n");
-    println!("Hello world2!\n");
-    let mem = [b'M'; 1000];
-    print!("{}\n", mem[..][80+1000]);
     halt();
 }
 
