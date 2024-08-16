@@ -13,6 +13,9 @@ extern "C" fn entry() {
     halt();
 }
 
+// TODO: Calling convention from PXE handling, such that we can switch back into real mode from
+// stage0.asm
+
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // Print the location where the panic occurred
