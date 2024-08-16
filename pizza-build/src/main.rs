@@ -10,6 +10,13 @@ const PXE_MAX_SIZE: u64 = 32 * 1024;
 
 
 fn main() {
+    // Call nasm to build the bootloader to be executed by the BIOS
+    let nasm_build = Command::new("nasm")
+        .current_dir("../bootloader/build")
+        .args(["-f", "win32", "-o", "utils.obj", "utils.asm"])
+        .output()
+        .expect("Failed to compile assembly utilites for the bootloader to use");
+
     // First, build the bootloader
     let build_bootloader = Command::new("cargo")
         .current_dir("../bootloader")

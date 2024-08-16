@@ -10,12 +10,15 @@ use serial::{Serial, print, println};
 //#[link(name = "build/utils", kind = "static")]
 extern "C" {
     fn add_2_numbers(a: i32, b: i32) -> i32;
+    fn switch_to_real_mode();
 }
 
 #[no_mangle]
 extern "C" fn entry() {
     Serial::init();
-    print!("{}", unsafe { add_2_numbers(9, 10) });
+    print!("MERE\n");
+    print!("{}", unsafe { add_2_numbers(23, 10) });
+    unsafe { switch_to_real_mode(); }
     halt();
 }
 
