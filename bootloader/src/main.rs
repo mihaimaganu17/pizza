@@ -7,9 +7,15 @@ use core::panic::PanicInfo;
 use cpu::x86::halt;
 use serial::{Serial, print, println};
 
+//#[link(name = "build/utils", kind = "static")]
+extern "C" {
+    fn add_2_numbers(a: i32, b: i32) -> i32;
+}
+
 #[no_mangle]
 extern "C" fn entry() {
     Serial::init();
+    print!("{}", unsafe { add_2_numbers(9, 10) });
     halt();
 }
 

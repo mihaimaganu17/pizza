@@ -66,7 +66,7 @@ switch_to_real_mode:
     pusha
     ; Load the real-mode gdt
     xor ax, ax
-    move ds, ax
+    mov ds, ax
     lgdt [ds:real_mode_gdtr]
 
     ; Clear the PE flag from CR0 to enable real-mode
@@ -83,10 +83,6 @@ switch_to_real_mode:
 
     ; Jump into real mode
     jmp 0x0008:real_mode
-
-
-align 24
-smap_buffer:
 
 align 8
 real_mode_gdt:

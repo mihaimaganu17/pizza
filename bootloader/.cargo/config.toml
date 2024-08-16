@@ -1,6 +1,6 @@
 [target.i586-pc-windows-msvc]
 linker = "lld-link"
-rustflags = ["-C", "link-args=/nodefaultlib /driver /subsystem:native /entry:entry /base:0x6e00 /filealign:0x1000 /fixed /align:16"]
+rustflags = ["-C", "linker=lld-link", "-C", "link-args=/nodefaultlib /driver /subsystem:native /entry:entry /base:0x6e00 /filealign:0x1000 /fixed /align:16 build/utils.obj"]
 
 [target.x86_64-pc-windows-msvc]
 
