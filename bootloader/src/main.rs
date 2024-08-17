@@ -34,6 +34,8 @@ extern "C" {
     // Call a real mode interrrupt with interrupt number `int_code` and with the given register and
     // selector state from `reg_sel_state`.
     fn real_mode_int(int_code: u8, reg_sel_state: &mut RegSelState);
+    // Call a PXE API service given by `pxe_code` id.
+    fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
 }
 
 #[no_mangle]
