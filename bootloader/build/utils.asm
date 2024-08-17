@@ -71,8 +71,73 @@ _pm_16bit:
     iretw
 
 .return_from_int:
-    cli
-    hlt
+    ; We push all the state to the stack in order to save the results we got from the interrupt
+    pushad
+    pushfd
+    push ds
+    push es
+    push ss
+    push gs
+    push fs
+
+    ; Get a pointer to the structure passed by as a second argument from the Rust call. This is
+    ; located above everything we pushed above int this `return_from_int` label + everything we
+    ; pushed in `read_mode_int` + the first argument + the return address
+    mov eax, dword [esp + (4*9 + 5*2 + 4*8 + 4 + 4)]
+
+    ; Now we update the register and selector state of the passed in register state structure
+    ; mentioned above by popping everything we pushed above.
+    pop word [eax + reg_sel_state.fs]
+    pop word [eax + reg_sel_state.gs]
+    pop word [eax + reg_sel_state.ss]
+    pop word [eax + reg_sel_state.es]
+    pop word [eax + reg_sel_state.ds]
+    pop dword [eax + reg_sel_state.eflags]
+    pop dword [eax + reg_sel_state.edi]
+    pop dword [eax + reg_sel_state.esi]
+    pop dword [eax + reg_sel_state.ebp]
+    pop dword [eax + reg_sel_state.esp]
+    pop dword [eax + reg_sel_state.ebx]
+    pop dword [eax + reg_sel_state.edx]
+    pop dword [eax + reg_sel_state.ecx]
+    pop dword [eax + reg_sel_state.eax]
+
+    ; Now we have the result of the interrupt and we need to go back in 32-bit protected mode
+
+    ; Set the PE flag in cr0 to enable protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+
+    ; Load the GDT data selector from the program that called us. Image base is 32-bit, translated
+    ; into real mode this means -> high 4 bytes for the selector and low 4 bytes for the offset
+    mov ax, (image_base >> 4)
+    mov ds, ax
+    ; Offset of the GDT
+    mov eax, (pm_gdtr - image_base)
+    lgdt [ds:eax]
+
+    ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
+    ; and each entry is 8 bytes (first is 0, second is code selector)
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov gs, ax
+    mov fs, ax
+
+    ; Set another interrupt frame that will make us jump back to protected mode
+    ; Push flags
+    pushfd
+    ; Push CS selector
+    push dword 0x0008
+    ; Push EIP
+    push dword _ret_to_rust
+
+    ; Return control back to the caller. This will perform a far return and get us back in protected
+    ; mode
+    iretd
+
 
 [bits 32]
     global _real_mode_int
@@ -94,6 +159,12 @@ _real_mode_int:
     ; Jump into protected mode 16bit and load CS with the second selector in the real mdoe GDT
     jmp 0x0008:(_pm_16bit - image_base)
 
+_ret_to_rust:
+    ; Pop the first register state that we saved upon entering `_real_mode_int`, which was the
+    ; callers register state
+    popad
+    ret
+
     global _add_2_numbers
 _add_2_numbers:
     push ebp
@@ -106,15 +177,19 @@ _add_2_numbers:
 
 ; Define a state structure that holds the value of all 32-bit registers, except the ESP and all the
 ; 16-bit selectors, except CS. This structure will be used for both input and output register values
-; whenever we are calling a BIOS Interrupt handler
+; whenever we are calling a BIOS Interrupt handler.
+; WARNING: The order of the 32-bit register is important, because it is the order in which pushad
+; pushes them to the stack
 struc reg_sel_state
     .eax: resd 1
-    .ebx: resd 1
     .ecx: resd 1
     .edx: resd 1
+    .ebx: resd 1
+    .esp: resd 1
+    .ebp: resd 1
     .esi: resd 1
     .edi: resd 1
-    .ebp: resd 1
+    .eflags: resd 1
     .ds: resw 1
     .es: resw 1
     .ss: resw 1
@@ -122,6 +197,8 @@ struc reg_sel_state
     .fs: resw 1
 endstruc
 
+
+    section .data
 align 8
 real_mode_gdt:
     ; First entry in the GDT must always be 0
@@ -137,3 +214,16 @@ real_mode_gdtr:
     ; 32-bit address of the GDT
     dd real_mode_gdt
 
+pm_gdt:
+    ; First entry is always Null
+    dq 0
+    db 0xff,0xff,0x00,0x00,0x00,0x9a,0xcf,0x00
+    db 0xff,0xff,0x00,0x00,0x00,0x92,0xcf,0x00
+
+; GDTR descriptor loaded using the LGDT assembly, which contains a size and a pointer to the GDT
+pm_gdtr:
+    ; Size of the GDT. In the case GDT is maxed out (2*16) bytes, we cannot fit that value in
+    ; 16-bits, so we have to substract 1
+    dw (pm_gdtr - pm_gdt) - 1
+    ; 4-bytes for the offset in 32-bit mode
+    dd pm_gdt

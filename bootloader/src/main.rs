@@ -12,12 +12,14 @@ use serial::{Serial, print, println};
 struct RegSelState {
     // All 32-bit registers (protected mode), except esp
     eax: u32,
-    ebx: u32,
     ecx: u32,
     edx: u32,
+    ebx: u32,
+    esp: u32,
+    ebp: u32,
     esi: u32,
     edi: u32,
-    ebp: u32,
+    eflags: u32,
     // All 16-bit selectors, except cs
     ds: u16,
     es: u16,
