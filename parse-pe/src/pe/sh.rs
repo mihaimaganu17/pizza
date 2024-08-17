@@ -1,6 +1,6 @@
 //! Module that defines and parses a PE's Section Header
 use parseme::ReadMe;
-use read_me::{Reader, ReaderError, Primitive};
+use read_me::{Reader, ReaderError};
 
 #[derive(Debug)]
 #[derive(ReadMe)]

@@ -45,12 +45,12 @@ fn main() {
     let mut flat_file = std::fs::File::create("../bootloader/build/pizza.flat")
         .expect("Failed to create flatten PE bootloader");
 
-    let (image_start, image_end) = bootloader_pe
+    let (image_start, _image_end) = bootloader_pe
         .image_bounds()
         .expect("Failed to get image bounds");
 
     // Dump all the sections into the flat bootloader
-    bootloader_pe.access_sections(|base, size, bytes| {
+    bootloader_pe.access_sections(|base, _size, bytes| {
         // Compute the offset into the file
         let flat_offset = u64::try_from(base.saturating_sub(image_start))
             .expect("Cannot convert to u64");

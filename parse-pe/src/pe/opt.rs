@@ -3,9 +3,9 @@ use parseme::ReadMe;
 use read_me::{Reader, ReaderError, Primitive};
 
 /// PE32
-pub const PE32_MAGIC: u16 = 0x10b;
+pub const _PE32_MAGIC: u16 = 0x10b;
 /// PE32+
-pub const PE32_PLUS_MAGIC: u16 = 0x20b;
+pub const _PE32_PLUS_MAGIC: u16 = 0x20b;
 
 #[derive(Debug)]
 #[derive(ReadMe)]
@@ -38,10 +38,6 @@ pub struct OptionalHeaderType<T: PeArch + Primitive> {
 }
 
 impl<T: PeArch + Primitive> OptionalHeaderType<T> {
-    pub fn image_base(&self) -> T {
-        self.image_base
-    }
-
     pub fn number_of_rva_and_sizes(&self) -> u32 {
         self.number_of_rva_and_sizes
     }

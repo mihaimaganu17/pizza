@@ -1,8 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Meta, Data, Fields, punctuated::Punctuated, Ident, Token, MetaNameValue, GenericParam, Type};
+use syn::{Data, Fields, GenericParam};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::parse::Parser;
 
 #[proc_macro_derive(ReadMe, attributes(from, handler, option))]
 // TODO: Handle option
@@ -24,7 +23,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     // Token stream containing the generic and the traits it has to implement
     let mut generic_traits = TokenStream2::new();
 
-    for (i, generic_param) in input.generics.params.iter().enumerate() {
+    for generic_param in input.generics.params.iter() {
         match generic_param {
             GenericParam::Type(type_param) => {
                 let ident = &type_param.ident;
@@ -47,8 +46,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         } else {
                             unimplemented!("Tuple fields are not implemented")
                         };
-
-                        let array_size = TokenStream2::new();
 
                         let (read_type_expr, size_expr) = match field.ty {
                             _ =>{
@@ -75,17 +72,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
             }
         }
         _ => unimplemented!("Current procedural macro is not implemented for `Enum` and `Union`"),
-        Data::Enum(data_enum) => {
-            for attr in input.attrs {
-                if let Meta::List(list) = attr.meta {
-                    if &format!("{}", list.path.segments[0].ident) == "read" {
-                        let parser =
-                            Punctuated::<MetaNameValue, Token![,]>::parse_separated_nonempty;
-                        let args = parser.parse(list.tokens.into()).expect("Failed to parse read arguments");
-                    }
-                }
-            }
-        }
     }
 
     let name_with_gen = if !generic_ident.is_empty() {

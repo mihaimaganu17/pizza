@@ -4,9 +4,8 @@ mod sh;
 
 use coff::CoffHeader;
 use opt::{OptionalHeader, OptionalHeaderType, DataDirectory};
-use sh::{SectionHeader, SectionHeadersIterator};
+use sh::SectionHeadersIterator;
 use read_me::{Reader, ReaderError};
-use parseme::ReadMe;
 
 pub const MZ_MAGIC: &[u8; 2] = b"MZ";
 pub const PE_MAGIC: &[u8; 4] = b"PE\0\0";
@@ -34,10 +33,10 @@ impl<'data> Pe<'data> {
 
         // Go to the PE offset.
         // Get the offset from the 0x3c location
-        reader.seek(0x3c);
+        let _ = reader.seek(0x3c)?;
         let pe_offset = reader.read::<u32>()?;
         // Move to that offset
-        reader.seek(usize::try_from(pe_offset)?);
+        reader.seek(usize::try_from(pe_offset)?)?;
         // Read the PE magic
         let pe = reader.read_bytes(PE_MAGIC.len())?;
 
@@ -60,7 +59,7 @@ impl<'data> Pe<'data> {
         };
 
         for _ in 0..opt_header.number_of_rva_and_sizes() {
-            let data_dir = reader.read::<DataDirectory>();
+            let _data_dir = reader.read::<DataDirectory>();
         }
 
         // Save the offset of the section headers
@@ -115,7 +114,7 @@ impl<'data> Pe<'data> {
     pub fn image_bounds(&self) -> Option<(usize, usize)> {
         let mut image_start = None;
         let mut image_end = None;
-        self.access_sections(|base, size, bytes| {
+        self.access_sections(|base, size, _bytes| {
             let end = base.saturating_add(size);
 
             if image_start.is_none() {

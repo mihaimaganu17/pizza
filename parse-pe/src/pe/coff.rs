@@ -46,14 +46,14 @@ impl TryFrom<u16> for Machine {
         match value {
             IMAGE_FILE_MACHINE_I386 => Ok(Self::I386),
             IMAGE_FILE_MACHINE_AMD64 => Ok(Self::AMD64),
-            _ => Err(Error::UnsupportedMachine(value))
+            _ => Err(Error::UnsupportedMachine)
         }
     }
 }
 
 #[derive(Debug)]
 pub enum Error {
-    UnsupportedMachine(u16),
+    UnsupportedMachine,
 }
 
 /// x86

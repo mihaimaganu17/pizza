@@ -1,6 +1,5 @@
     section .text
 
-
 [bits 32]
     global _real_mode_int
 ; Call a real mode interrupt from a protected mode CPU
@@ -93,11 +92,14 @@ _real_mode_int:
     iretw
 
 .return_from_int:
-    ; Clear interrupts
-    cli
-
     ; We push all the state to the stack in order to save the results we got from the interrupt
-    pushad
+    push eax
+    push ecx
+    push edx
+    push ebx
+    push ebp
+    push esi
+    push edi
     pushfd
     push ds
     push es
@@ -108,7 +110,7 @@ _real_mode_int:
     ; Get a pointer to the structure passed by as a second argument from the Rust call. This is
     ; located above everything we pushed above int this `return_from_int` label + everything we
     ; pushed in `read_mode_int` + the first argument + the return address
-    mov eax, dword [esp + (4*9 + 5*2 + 4*8 + 4 + 4)]
+    mov eax, dword [esp + (4*8 + 5*2 + 4*8 + 4 + 4)]
 
     ; Now we update the register and selector state of the passed in register state structure
     ; mentioned above by popping everything we pushed above.
@@ -121,7 +123,6 @@ _real_mode_int:
     pop dword [eax + reg_sel_state.edi]
     pop dword [eax + reg_sel_state.esi]
     pop dword [eax + reg_sel_state.ebp]
-    pop dword [eax + reg_sel_state.esp]
     pop dword [eax + reg_sel_state.ebx]
     pop dword [eax + reg_sel_state.edx]
     pop dword [eax + reg_sel_state.ecx]
@@ -129,18 +130,18 @@ _real_mode_int:
 
     ; Now we have the result of the interrupt and we need to go back in 32-bit protected mode
 
-    ; Set the PE flag in cr0 to enable protected mode
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-
     ; Load the GDT data selector from the program that called us. Image base is 32-bit, translated
     ; into real mode this means -> high 4 bytes for the selector and low 4 bytes for the offset
     mov ax, (image_base >> 4)
     mov ds, ax
+
+    ; Set the PE flag in cr0 to enable protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
     ; Offset of the GDT
     mov eax, (pm_gdtr - image_base)
-    lgdt [ds:eax]
+    lgdt [eax]
 
     ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
     ; and each entry is 8 bytes (first is 0, second is code selector)
@@ -176,7 +177,7 @@ _pxe_call:
     ; Save all the 8 register state of the caller
     pushad
     ; Load the real-mode GDT
-    lgdt [real_mode_gdtr]
+    lgdt [ds:real_mode_gdtr]
 
     ; Load all segments with the data selector (3rd entry in the RealMode GDT)
     mov ax, 0x10
@@ -253,7 +254,7 @@ _pxe_call:
     mov ds, ax
     ; Offset of the GDT
     mov eax, (pm_gdtr - image_base)
-    lgdt [ds:eax]
+    lgdt [eax]
 
     ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
     ; and each entry is 8 bytes (first is 0, second is code selector)

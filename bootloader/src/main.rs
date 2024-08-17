@@ -28,23 +28,50 @@ struct RegSelState {
     fs: u16,
 }
 
+#[repr(C)]
+#[derive(Default, Debug)]
+struct AddressRange {
+    // Base address for this range
+    base_addr: u64,
+    // Length of this range
+    length: u64,
+    // Address type of this range
+    addr_type: u32,
+}
+
 //#[link(name = "build/utils", kind = "static")]
 extern "C" {
-    fn add_2_numbers(a: i32, b: i32) -> i32;
+    //fn add_2_numbers(a: i32, b: i32) -> i32;
     // Call a real mode interrrupt with interrupt number `int_code` and with the given register and
     // selector state from `reg_sel_state`.
-    fn real_mode_int(int_code: u8, reg_sel_state: &mut RegSelState);
+    fn real_mode_int(int_code: u8, reg_sel_state: &RegSelState);
     // Call a PXE API service given by `pxe_code` id.
-    fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
+    //fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
 }
 
 #[no_mangle]
 extern "C" fn entry() {
     Serial::init();
-    print!("MERE\n");
-    print!("{}", unsafe { add_2_numbers(23, 10) });
-    let mut reg_sel_state = RegSelState { eax: 0x3, ..Default::default() };
-    unsafe { real_mode_int(0x10, &mut reg_sel_state); }
+
+    unsafe {
+        print!("MERE\n");//, add_2_numbers(1, 1));
+
+        let addr_range = AddressRange::default();
+
+        // Get the memory map of the system using the int=15h and ax=e820h interrupt
+        let reg_sel_state = RegSelState {
+            eax: 0xe820,
+            ebx: 0,
+            edi: &addr_range as *const AddressRange as u32,
+            ecx: core::mem::size_of::<AddressRange>() as u32,
+            edx: u32::from_le_bytes(*b"SMAP"),
+            ..Default::default()
+        };
+
+        real_mode_int(0x15, &reg_sel_state);
+
+        println!("AddressRange {:?}", addr_range);
+    }
     halt();
 }
 
