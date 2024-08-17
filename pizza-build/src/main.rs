@@ -13,9 +13,14 @@ fn main() {
     // Call nasm to build the bootloader to be executed by the BIOS
     let nasm_build = Command::new("nasm")
         .current_dir("../bootloader/build")
-        .args(["-f", "win32", "-o", "utils.obj", "utils.asm"])
+        .args(["-f", "win32", &format!("-Dimage_base={}", 0x7e00), "-o", "utils.obj", "utils.asm"])
         .output()
         .expect("Failed to compile assembly utilites for the bootloader to use");
+
+    // If the build status was not successful, print the error
+    if !nasm_build.status.success() {
+        println!("Bootloader nasm compile error: {:?}", String::from_utf8(nasm_build.stderr));
+    }
 
     // First, build the bootloader
     let build_bootloader = Command::new("cargo")
