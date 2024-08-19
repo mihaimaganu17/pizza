@@ -56,20 +56,29 @@ extern "C" fn entry() {
     unsafe {
 
         let mut addr_range = AddressRange::default();
+        let mut reg_sel_state = RegSelState::default();
 
-        // Get the memory map of the system using the int=15h and ax=e820h interrupt
-        let mut reg_sel_state = RegSelState {
-            eax: 0xe820,
-            ebx: 0,
-            edi: &mut addr_range as *mut AddressRange as u32,
-            ecx: 20,//core::mem::size_of::<AddressRange>() as u32,
-            edx: u32::from_be_bytes(*b"SMAP"),
-            ..Default::default()
-        };
+        // Set up the register state for a int 15h, ax e820h call
+        // ebx contains the continuation value, which must start as 0 and is updated after each
+        // interrupt call to e820. `ebx` becomes 0 again at the last returned descriptor
+        reg_sel_state.ebx = 0;
+        // Does not change between calls
+        reg_sel_state.ecx = core::mem::size_of::<AddressRange>() as u32;
+        // Does not change between calls
+        reg_sel_state.edi = &mut addr_range as *mut AddressRange as u32;
 
-        real_mode_int(0x15, &mut reg_sel_state);
+        loop {
+            // EAX and EDX register values differ between input and output
+            reg_sel_state.eax = 0xe820;
+            reg_sel_state.edx = u32::from_be_bytes(*b"SMAP");
+            real_mode_int(0x15, &mut reg_sel_state);
+            println!("AddressRange {:x?}", addr_range);
 
-        print!("AddressRange {:?}", addr_range);
+            // If either carry flag is set (error), or the continuation value (ebx) is zero after
+            // this call, there are no other descriptors left to be read.
+            // Last address range in AMD systems can be explained in qemu/hw/i386/pc.c:782
+            if reg_sel_state.eflags & 1 == 1 || reg_sel_state.ebx == 0 { break; }
+        }
     }
     halt();
 }
