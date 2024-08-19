@@ -57,22 +57,23 @@ _real_mode_int:
     xor eax, eax
     mov cr3, eax
 
+    ; Zero the segments (not necessarily needed here, as a far return should zero them out :-?
     mov ds, ax
     mov es, ax
     mov gs, ax
     mov fs, ax
     mov ss, ax
 
-    ; Perform a long jump to real-mode
+    ; Perform a far return to real-mode
     ; Push flags
     pushfd
     ; Push code segment
     push dword (image_base >> 4)
     ; Push instruction pointer
-    push dword (.call_int1 - image_base)
+    push dword (.call_int - image_base)
     iretd
 
-.call_int1:
+.call_int:
     ; Get the interrupt number
     ; This is the first argument of the function calling `_real_mode_int`. Because we previously
     ; pushad'ed, we have 8 registers and a return address on the stack before the actual argument
@@ -201,7 +202,128 @@ _real_mode_int:
     ; mode
     iretd
 
+[bits 32]
+    global _pxe_call
+; Call a real mode interrupt from a protected mode CPU
+_pxe_call:
+    ; Save all the 8 register state of the caller
+    pushad
+    ; Load the real-mode GDT
+    lgdt [real_mode_gdtr]
 
+    ; Load all segments with the data selector (3rd entry in the RealMode GDT)
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    ; Jump into protected mode 16bit and load CS with the second selector in the real mdoe GDT
+    jmp 0x0008:(.pxe_call_16bit - image_base)
+
+[bits 16]
+; Protected mode 16-bit
+.pxe_call_16bit:
+    ; Clear the PE flag from CR0 to enable real-mode
+    mov eax, cr0
+    ; PE flag is bit 0
+    and eax, -1
+    ; Make sure that paging is disabled (bit 31 of cr0 has to be 0)
+    and eax, 0x7ffffffe
+    mov cr0, eax
+
+    ; Move 0x00 into the CR3 register to flush the TLB (translation-lookaside buffer)
+    xor eax, eax
+    mov cr3, eax
+
+    ; Zero the segments (not necessarily needed here, as a far return should zero them out :-?
+    mov ds, ax
+    mov es, ax
+    mov gs, ax
+    mov fs, ax
+    mov ss, ax
+
+    ; Perform a far return to real-mode
+    ; Push flags
+    pushfd
+    ; Push code segment
+    push dword (image_base >> 4)
+    ; Push instruction pointer
+    push dword (.call_pxe - image_base)
+    iretd
+
+.call_pxe:
+    ; pub fn pxecall(pxe_code_seg: u16, pxe_offset: u16, data_seg: u16, param_offset: u16,
+    ;                   pxe_call: u16)
+    movzx eax, word [esp + (4 * 8 + 4)]; arg1, pxe undi code segment
+    movzx ebx, word [esp + (4 * 8 + 8)]; arg2, pxe undi code segment offset
+    movzx ecx, word [esp + (4 * 8 + 12)]; arg3, pxe undi data segment
+    movzx edx, word [esp + (4 * 8 + 16)]; arg4, parameter offset for the pxe function to be called
+    movzx esi, word [esp + (4 * 8 + 20)]; arg5, pxe code for the function to be called
+
+    ; Push parameters for the PXE call
+    push si,
+    push dx,
+    push cx,
+
+    ; Setting up the far return that will make pxe give execution back after it executes the call
+    mov ebp, (.ret_from_pxe_call - image_base)
+    push cs
+    push bp
+
+    ; Setting up the stack frame that will be used by the BIOS real mode to execute the PXE call
+    ; with the arguments we got from the caller in eax(code segment) and ebx(segment offset)
+    ; Push flags
+    pushfw
+    ; Push CS
+    push ax,
+    ; Push offset / IP
+    push bx,
+
+    ; Perform a far return which will jump to real mode and execute the PXE call, after which
+    ; it will return execution to `.ret_from_pxe_call`
+    iretw
+
+.ret_from_pxe_call
+    ; Clear interrupts
+    cli
+    ; Clear up the stack from the last 3 arguments we passed to pxe
+    add sp, 3 * 2
+
+    ; Set the PE flag in cr0 to enable protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+
+    ; Load the GDT data selector from the program that called us. Image base is 32-bit, translated
+    ; into real mode this means -> high 4 bytes for the selector and low 4 bytes for the offset
+    mov ax, (image_base >> 4)
+    mov ds, ax
+    ; Offset of the GDT
+    mov eax, (pm_gdtr - image_base)
+    lgdt [eax]
+
+    ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
+    ; and each entry is 8 bytes (first is 0, second is code selector)
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov gs, ax
+    mov fs, ax
+
+    ; Set another interrupt frame that will make us jump back to protected mode
+    ; Push flags
+    pushfd
+    ; Push CS selector
+    push dword 0x0008
+    ; Push EIP
+    push dword ret_to_rust
+
+    ; Return control back to the caller. This will perform a far return and get us back in protected
+    ; mode
+    iretd
 
 [bits 32]
 ret_to_rust:

@@ -28,22 +28,14 @@ struct RegSelState {
     fs: u16,
 }
 
-
-//#[link(name = "build/utils", kind = "static")]
 extern "C" {
-    //fn add_2_numbers(a: i32, b: i32) -> i32;
     // Call a real mode interrrupt with interrupt number `int_code` and with the given register and
     // selector state from `reg_sel_state`.
     fn real_mode_int(int_code: u8, reg_sel_state: *mut RegSelState);
     // Call a PXE API service given by `pxe_code` id.
-    //fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
+    fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
 }
 
-#[no_mangle]
-extern "C" fn entry() {
-    Serial::init();
-
-    unsafe {
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct AddressRange {
@@ -56,6 +48,12 @@ pub struct AddressRange {
     // Address type of this range
     addr_type: u32,
 }
+
+#[no_mangle]
+extern "C" fn entry() {
+    Serial::init();
+
+    unsafe {
 
         let mut addr_range = AddressRange::default();
 
