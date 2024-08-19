@@ -1,9 +1,31 @@
-    section .text
-
 [bits 32]
+; Define a state structure that holds the value of all 32-bit registers, except the ESP and all the
+; 16-bit selectors, except CS. This structure will be used for both input and output register values
+; whenever we are calling a BIOS Interrupt handler.
+; WARNING: The order of the 32-bit register is important, because it is the order in which pushad
+; pushes them to the stack
+struc reg_sel_state
+    .eax: resd 1
+    .ecx: resd 1
+    .edx: resd 1
+    .ebx: resd 1
+    .esp: resd 1
+    .ebp: resd 1
+    .esi: resd 1
+    .edi: resd 1
+    .eflags: resd 1
+    .ds: resw 1
+    .es: resw 1
+    .ss: resw 1
+    .gs: resw 1
+    .fs: resw 1
+endstruc
+
+    section .text
     global _real_mode_int
 ; Call a real mode interrupt from a protected mode CPU
 _real_mode_int:
+	cld
     ; Save all the 8 register state of the caller
     pushad
     ; Load the real-mode GDT
@@ -35,7 +57,22 @@ _real_mode_int:
     xor eax, eax
     mov cr3, eax
 
-.call_int:
+    mov ds, ax
+    mov es, ax
+    mov gs, ax
+    mov fs, ax
+    mov ss, ax
+
+    ; Perform a long jump to real-mode
+    ; Push flags
+    pushfd
+    ; Push code segment
+    push dword (image_base >> 4)
+    ; Push instruction pointer
+    push dword (.call_int1 - image_base)
+    iretd
+
+.call_int1:
     ; Get the interrupt number
     ; This is the first argument of the function calling `_real_mode_int`. Because we previously
     ; pushad'ed, we have 8 registers and a return address on the stack before the actual argument
@@ -52,7 +89,7 @@ _real_mode_int:
 
 ;--------------------------------------------------------------------------------------------------
     ; Construct the interrupt stack frame that the interrupt call expects
-.inject_stack_frame:
+;.inject_stack_frame:
     ; Setting up the stack frame that we control, which will be popped off by the interrupt handler
     ; that we call in order to return execution after the interrupt is finished.
     ; This will switch controll to the address of `.return_from_int`.
@@ -76,12 +113,12 @@ _real_mode_int:
 
     ; Now, we want to set all the registers to the state which was sent by the caller. We leave eax
     ; at the end, because it has the pointer to the entire state structure
-    mov ebx, dword [eax + reg_sel_state.ebx]
     mov ecx, dword [eax + reg_sel_state.ecx]
     mov edx, dword [eax + reg_sel_state.edx]
+    mov ebx, dword [eax + reg_sel_state.ebx]
+    mov ebp, dword [eax + reg_sel_state.ebp]
     mov esi, dword [eax + reg_sel_state.esi]
     mov edi, dword [eax + reg_sel_state.edi]
-    mov ebp, dword [eax + reg_sel_state.ebp]
     mov eax, dword [eax + reg_sel_state.eax]
 
     ; Perform a far return to the interrupt entry point, simulating a software interrupt
@@ -158,165 +195,20 @@ _real_mode_int:
     ; Push CS selector
     push dword 0x0008
     ; Push EIP
-    push dword .ret_to_rust
+    push dword ret_to_rust
 
     ; Return control back to the caller. This will perform a far return and get us back in protected
     ; mode
     iretd
 
+
+
 [bits 32]
-.ret_to_rust:
+ret_to_rust:
     ; Pop the first register state that we saved upon entering `_real_mode_int`, which was the
     ; callers register state
     popad
     ret
-
-    global _pxe_call
-; Call a real mode interrupt from a protected mode CPU
-_pxe_call:
-    ; Save all the 8 register state of the caller
-    pushad
-    ; Load the real-mode GDT
-    lgdt [ds:real_mode_gdtr]
-
-    ; Load all segments with the data selector (3rd entry in the RealMode GDT)
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
-
-    ; Jump into protected mode 16bit and load CS with the second selector in the real mdoe GDT
-    jmp 0x0008:(.pxe_call_16bit - image_base)
-
-[bits 16]
-; Protected mode 16-bit
-.pxe_call_16bit:
-    ; Clear the PE flag from CR0 to enable real-mode
-    mov eax, cr0
-    ; PE flag is bit 0
-    and eax, -1
-    ; Make sure that paging is disabled (bit 31 of cr0 has to be 0)
-    and eax, 0x7ffffffe
-    mov cr0, eax
-
-    ; Move 0x00 into the CR3 register to flush the TLB (translation-lookaside buffer)
-    xor eax, eax
-    mov cr3, eax
-
-.call_pxe:
-    ; pub fn pxecall(pxe_code_seg: u16, pxe_offset: u16, data_seg: u16, param_offset: u16,
-    ;                   pxe_call: u16)
-    movzx eax, word [esp + (4 * 8 + 4)]; arg1, pxe undi code segment
-    movzx ebx, word [esp + (4 * 8 + 8)]; arg2, pxe undi code segment offset
-    movzx ecx, word [esp + (4 * 8 + 12)]; arg3, pxe undi data segment
-    movzx edx, word [esp + (4 * 8 + 16)]; arg4, parameter offset for the pxe function to be called
-    movzx esi, word [esp + (4 * 8 + 20)]; arg5, pxe code for the function to be called
-
-    ; Push parameters for the PXE call
-    push si,
-    push dx,
-    push cx,
-
-    ; Setting up the far return that will make pxe give execution back after it executes the call
-    mov ebp, (.ret_from_pxe_call - image_base)
-    push cs
-    push bp
-
-    ; Setting up the stack frame that will be used by the BIOS real mode to execute the PXE call
-    ; with the arguments we got from the caller in eax(code segment) and ebx(segment offset)
-    ; Push flags
-    pushfw
-    ; Push CS
-    push ax,
-    ; Push offset / IP
-    push bx,
-
-    ; Perform a far return which will jump to real mode and execute the PXE call, after which
-    ; it will return execution to `.ret_from_pxe_call`
-    iretw
-
-.ret_from_pxe_call
-    ; Clear interrupts
-    cli
-    ; Clear up the stack from the last 3 arguments we passed to pxe
-    add sp, 3 * 2
-
-    ; Set the PE flag in cr0 to enable protected mode
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-
-    ; Load the GDT data selector from the program that called us. Image base is 32-bit, translated
-    ; into real mode this means -> high 4 bytes for the selector and low 4 bytes for the offset
-    mov ax, (image_base >> 4)
-    mov ds, ax
-    ; Offset of the GDT
-    mov eax, (pm_gdtr - image_base)
-    lgdt [eax]
-
-    ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
-    ; and each entry is 8 bytes (first is 0, second is code selector)
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
-    mov gs, ax
-    mov fs, ax
-
-    ; Set another interrupt frame that will make us jump back to protected mode
-    ; Push flags
-    pushfd
-    ; Push CS selector
-    push dword 0x0008
-    ; Push EIP
-    push dword .ret_to_rust
-
-    ; Return control back to the caller. This will perform a far return and get us back in protected
-    ; mode
-    iretd
-
-[bits 32]
-.ret_to_rust:
-    ; Pop the first register state that we saved upon entering `_real_mode_int`, which was the
-    ; callers register state
-    popad
-    ret
-
-[bits 32]
-    global _add_2_numbers
-_add_2_numbers:
-    push ebp
-    mov ebp, esp
-    mov eax, [esp+8]
-    mov edx, [esp+12]
-    add eax,edx
-    pop ebp
-    ret
-
-; Define a state structure that holds the value of all 32-bit registers, except the ESP and all the
-; 16-bit selectors, except CS. This structure will be used for both input and output register values
-; whenever we are calling a BIOS Interrupt handler.
-; WARNING: The order of the 32-bit register is important, because it is the order in which pushad
-; pushes them to the stack
-struc reg_sel_state
-    .eax: resd 1
-    .ecx: resd 1
-    .edx: resd 1
-    .ebx: resd 1
-    .esp: resd 1
-    .ebp: resd 1
-    .esi: resd 1
-    .edi: resd 1
-    .eflags: resd 1
-    .ds: resw 1
-    .es: resw 1
-    .ss: resw 1
-    .gs: resw 1
-    .fs: resw 1
-endstruc
-
 
     section .data
 align 8

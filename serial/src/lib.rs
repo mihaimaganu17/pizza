@@ -3,6 +3,7 @@
 use sync::LockCell;
 use cpu::x86::{out_u8, in_u8};
 
+#[derive(Debug)]
 pub struct Serial {
     ports: [Option<u16>; 4],
 }
@@ -32,6 +33,21 @@ impl Serial {
             *port = Some(port_addr);
         }
     }
+    // Broadcast write `bytes` to all known and initialized serial ports
+    fn write_bytes(&mut self, bytes: &[u8]) {
+        for value in bytes {
+            for maybe_port in &self.ports {
+                if let Some(port) = maybe_port {
+                    write(*port, *value);
+                }
+            }
+        }
+    }
+
+    // Broadcast write `text` to all known and initialized serial ports
+    fn write_str(&mut self, text: &str) {
+        self.write_bytes(text.as_bytes());
+    }
 }
 
 // Initialize a serial communication port at `port`
@@ -47,7 +63,7 @@ fn init_serial(port: u16) {
     // Set 8 data bits, no parity and 1 stop bit (8n1). Also disable DLAB
     out_u8(port.saturating_add(3), 0b00000011);
     // Disable FIFO Buffer state (not present in all processors)
-    out_u8(port.saturating_add(2), 0x00);
+    //out_u8(port.saturating_add(2), 0x00);
     // RTS/DTR set
     out_u8(port.saturating_add(4), 0x03);
     // Enable loopback mode in Modem Control Register, in order to test the port
@@ -91,30 +107,12 @@ fn write(port: u16, value: u8) {
     write_data(port, value);
 }
 
-// Broadcast write `bytes` to all known and initialized serial ports
-fn write_bytes(bytes: &[u8]) {
-    let serial = SERIAL.lock();
-
-    for value in bytes {
-        for maybe_port in &serial.ports {
-            if let Some(port) = maybe_port {
-                write(*port, *value);
-            }
-        }
-    }
-}
-
-// Broadcast write `text` to all known and initialized serial ports
-fn write_str(text: &str) {
-    write_bytes(text.as_bytes());
-}
-
 /// Writer for serial
 pub struct SerialWriter;
 
 impl core::fmt::Write for SerialWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        write_str(s);
+        SERIAL.lock().write_str(s);
         Ok(())
     }
 }

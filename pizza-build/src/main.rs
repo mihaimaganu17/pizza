@@ -8,12 +8,13 @@ use std::path::Path;
 // Actually this is a recommended size and not the maximum possible value
 const PXE_MAX_SIZE: u64 = 32 * 1024;
 
+const BOOTLOADER_BASE: usize = 0x7e00;
 
 fn main() {
     // Call nasm to build the bootloader to be executed by the BIOS
     let nasm_build = Command::new("nasm")
         .current_dir("../bootloader/build")
-        .args(["-f", "win32", &format!("-Dimage_base={}", 0x7e00), "-o", "utils.obj", "utils.asm"])
+        .args(["-f", "win32", &format!("-Dimage_base={}", BOOTLOADER_BASE), "-o", "utils.obj", "utils.asm"])
         .output()
         .expect("Failed to compile assembly utilites for the bootloader to use");
 
@@ -48,6 +49,11 @@ fn main() {
     let (image_start, _image_end) = bootloader_pe
         .image_bounds()
         .expect("Failed to get image bounds");
+
+    if image_start != BOOTLOADER_BASE {
+        panic!("Base address for bootloader did not match expected");
+    }
+
 
     // Dump all the sections into the flat bootloader
     bootloader_pe.access_sections(|base, _size, bytes| {

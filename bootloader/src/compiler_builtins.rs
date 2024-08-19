@@ -7,7 +7,7 @@ pub unsafe extern "C" fn memset(dest: *mut u8, value: i32, len: usize) -> *mut u
     let mut idx = 0;
     while idx < len {
         // *dest.offset can also be used
-        *dest.add(idx) = value as u8;
+        *dest.offset(idx as isize) = value as u8;
         idx += 1;
     }
     dest
@@ -25,11 +25,20 @@ pub unsafe extern "C" fn mainCRTStartup() -> i32 {
 /// Applications in which `dst` and `src` might overlap should use `memmove` instead.
 #[no_mangle]
 pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mut u8 {
-    let mut idx = 0;
-
-    while idx < len {
-        *dst.add(idx) = *src.add(idx);
-        idx += 1;
+    if src < dst as *const u8 {
+        // copy backwards
+        let mut ii = len;
+        while ii != 0 {
+            ii -= 1;
+            *dst.offset(ii as isize) = *src.offset(ii as isize);
+        }
+    } else {
+        // copy forwards
+        let mut ii = 0;
+        while ii < len {
+            *dst.offset(ii as isize) = *src.offset(ii as isize);
+            ii += 1;
+        }
     }
 
     dst
@@ -38,7 +47,7 @@ pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mu
 /// Compared byte string `s1` against byte string `s2`. Both strings are assumed to be `len` bytes
 /// long.
 #[no_mangle]
-pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> u8 {
+pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> i32 {
     let mut idx = 0;
 
     // We assume the strings are the same
@@ -46,16 +55,16 @@ pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> u8 
 
     while idx < len {
         // We mimic the C's behaviour in case we underflow.
-        diff = (*s1.add(idx)).wrapping_sub(*s2.add(idx));
+        diff = (*s1.offset(idx as isize)).wrapping_sub(*s2.offset(idx as isize));
         // If out assumption is wrong, we return the difference
         if diff != 0 {
-            return diff;
+            return diff as i32;
         }
 
         idx += 1;
     }
 
-    diff
+    diff as i32
 }
 
 /// Divides 2 64-bit unsigned integers returning the integer part of the division.
