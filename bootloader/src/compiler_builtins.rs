@@ -27,17 +27,17 @@ pub unsafe extern "C" fn mainCRTStartup() -> i32 {
 pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mut u8 {
     if src < dst as *const u8 {
         // copy backwards
-        let mut ii = len;
-        while ii != 0 {
-            ii -= 1;
-            *dst.offset(ii as isize) = *src.offset(ii as isize);
+        let mut idx = len;
+        while idx != 0 {
+            idx -= 1;
+            *dst.add(idx) = *src.add(idx);
         }
     } else {
         // copy forwards
-        let mut ii = 0;
-        while ii < len {
-            *dst.offset(ii as isize) = *src.offset(ii as isize);
-            ii += 1;
+        let mut idx = 0;
+        while idx < len {
+            *dst.add(idx) = *src.add(idx);
+            idx += 1;
         }
     }
 
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mu
 /// Compared byte string `s1` against byte string `s2`. Both strings are assumed to be `len` bytes
 /// long.
 #[no_mangle]
-pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> i32 {
+pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> u8 {
     let mut idx = 0;
 
     // We assume the strings are the same
@@ -55,16 +55,16 @@ pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, len: usize) -> i32
 
     while idx < len {
         // We mimic the C's behaviour in case we underflow.
-        diff = (*s1.offset(idx as isize)).wrapping_sub(*s2.offset(idx as isize));
+        diff = (*s1.add(idx)).wrapping_sub(*s2.add(idx));
         // If out assumption is wrong, we return the difference
         if diff != 0 {
-            return diff as i32;
+            return diff;
         }
 
         idx += 1;
     }
 
-    diff as i32
+    diff
 }
 
 /// Divides 2 64-bit unsigned integers returning the integer part of the division.
