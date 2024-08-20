@@ -54,7 +54,6 @@ extern "C" fn entry() {
     Serial::init();
 
     unsafe {
-
         let mut addr_range = AddressRange::default();
         let mut reg_sel_state = RegSelState::default();
 
