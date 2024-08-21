@@ -28,12 +28,62 @@ impl RangeSet {
         // If the range does not pass of sanity checks, return None
         if !check_range(&range) { return None; }
 
-        for idx in 0..self.elements.len() {
-            // If the ranges do not overlap or touch, then we go to the next range
-            if !overlap_or_touch(&self.elements[idx], &range) {
-                continue;
+        let mut tmp_range = range;
+
+        'merge: loop {
+            for idx in 0..self.size {
+                // If the ranges do not overlap or touch, then we go to the next range
+                if !overlap_or_touch(self.elements.get(idx)?, &tmp_range) {
+                    continue;
+                }
+
+                // Create the new range from the 2 overlapping ones
+                let start = core::cmp::min(*tmp_range.start(), *self.elements.get(idx)?.start());
+                let end = core::cmp::max(*tmp_range.end(), *self.elements.get(idx)?.end());
+
+                // We delete the range we found to be overlapping
+                self.delete(idx);
+
+                // We construct a new range which will be used for overlap test
+                tmp_range = RangeInclusive::new(start, end);
+
+                // We now test these new range for merging
+                continue 'merge;
+            }
+            // If we reached this point, there is no more overlap. We can insert the range and
+            // break
+            if self.size == self.elements.len() {
+                // No more room
+                return None;
+            } else {
+                *self.elements.get_mut(self.size)? = tmp_range;
+                self.size = self.size.saturating_add(1);
+                break 'merge;
             }
         }
+        Some(())
+    }
+
+    /// Delete the range at `index` from the set
+    pub fn delete(&mut self, index: usize) -> Option<()> {
+        // Index is bigger than the last position an element occupies
+        if index >= self.size || self.size == 0 {
+            return None;
+        }
+
+        // Move the desired to delete element to the last position
+        for idx in index..self.size - 1 {
+            let idx_range = self.elements[idx].clone();
+            self.elements[idx] = self.elements[idx+1].clone();
+            self.elements[idx+1] = idx_range;
+        }
+
+        // Decrease the size
+        self.size -= 1;
+
+        // Remove the last element, by replacing it with zero.
+        self.elements[self.size] = RangeInclusive::new(0, 0);
+
         Some(())
     }
 
@@ -135,5 +185,9 @@ mod tests {
 
         let range2 = RangeInclusive::new(25, 12);
         assert!(overlap_or_touch(&range1, &range2) == false);
+    }
+
+    #[test]
+    fn range_overlap() {
     }
 }
