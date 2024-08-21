@@ -87,10 +87,13 @@ impl RangeSet {
         Some(())
     }
 
-    pub const fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.size
     }
 
+    pub fn ranges(&self) -> &[RangeInclusive<u64>] {
+        &self.elements[..self.size]
+    }
 }
 
 // Checks if ther start of the range is smaller or equal than the end
@@ -188,6 +191,80 @@ mod tests {
     }
 
     #[test]
-    fn range_overlap() {
+    fn range_set_no_overlap() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 10),
+                RangeInclusive::new(15, 20),
+                RangeInclusive::new(30, 40),
+            ]
+        );
+        assert!(set.len() == 3);
+    }
+
+    #[test]
+    fn range_set_simple_overlap() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(19, 25)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(27, 35)).expect("Could not insert range");
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 10),
+                RangeInclusive::new(15, 25),
+                RangeInclusive::new(27, 40),
+            ]
+        );
+        assert!(set.len() == 3);
+    }
+
+    #[test]
+    fn range_set_recursive_overlap() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(19, 25)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(24, 35)).expect("Could not insert range");
+
+        extern crate std;
+        std::println!("{:#?}", set.ranges());
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 10),
+                RangeInclusive::new(15, 40),
+            ]
+        );
+        assert!(set.len() == 2);
+    }
+
+    #[test]
+    fn range_set_recursive_touching_overlap() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(21, 29)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(11, 14)).expect("Could not insert range");
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 40),
+            ]
+        );
+        assert!(set.len() == 1);
     }
 }
