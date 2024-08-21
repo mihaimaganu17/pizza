@@ -122,7 +122,7 @@ impl RangeSet {
                 // Check we have enough room to further split this range. Which means that if the
                 // set is too fragmented, we either need to increase the capacity of the set, or
                 // create a new set.
-                if self.size < self.elements.len() {
+                if self.size == self.elements.len() {
                     return None;
                 }
                 // We do have room, so we keep the low end in this current entry and insert the
@@ -298,9 +298,6 @@ mod tests {
         set.insert(RangeInclusive::new(19, 25)).expect("Could not insert range");
         set.insert(RangeInclusive::new(24, 35)).expect("Could not insert range");
 
-        extern crate std;
-        std::println!("{:#?}", set.ranges());
-
         assert!(
             set.ranges() ==
             &[
@@ -327,5 +324,32 @@ mod tests {
             ]
         );
         assert!(set.len() == 1);
+    }
+
+    #[test]
+    fn range_set_basic_consume() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(50, 100)).expect("Could not insert range");
+
+        set.consume(&RangeInclusive::new(0, 5)).expect("Could not consume");
+        set.consume(&RangeInclusive::new(6, 10)).expect("Could not consume");
+        set.consume(&RangeInclusive::new(15, 20)).expect("Could not consume");
+        set.consume(&RangeInclusive::new(33, 39)).expect("Could not consume");
+        set.consume(&RangeInclusive::new(55, 100)).expect("Could not consume");
+
+        assert!(set.consume(&RangeInclusive::new(49, 50)).is_none());
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(30, 32),
+                RangeInclusive::new(50, 54),
+                RangeInclusive::new(40, 40),
+            ]
+        );
+        assert!(set.len() == 3);
     }
 }
