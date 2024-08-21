@@ -64,8 +64,8 @@ impl RangeSet {
         Some(())
     }
 
-    /// Delete the range at `index` from the set
-    pub fn delete(&mut self, index: usize) -> Option<()> {
+    // Delete the range at `index` from the set
+    fn delete(&mut self, index: usize) -> Option<()> {
         // Index is bigger than the last position an element occupies
         if index >= self.size || self.size == 0 {
             return None;
@@ -87,6 +87,59 @@ impl RangeSet {
         Some(())
     }
 
+    /// Consume a `RangeInclusive` from the existing available ranges in the set. This operation
+    /// trimms any range that overlaps with the one we want to consume, deletes any range that is
+    /// equal to the one we want to consume and splits any range that has a middle overlap with
+    /// the one we want to consume.
+    pub fn consume(&mut self, range: &RangeInclusive<u64>) -> Option<()> {
+        for idx in 0..self.size {
+            // It is safe to clone here because this is just a local copy we want to use
+            let entry = self.elements[idx].clone();
+            // If the 2 ranges equal, we just delete the entry
+            if &entry == range {
+                return self.delete(idx);
+            }
+            // Based on how we implemented insert, there cannot exist 2 ranges that overlap or
+            // touch already in the set. As such, we have to find the range in the set that fully
+            // contains the input range.
+            if !contains(&entry, range) { continue; }
+
+            // At this point, we know our desired range is contained in the entry. We now have to
+            // find how much of the entry remains, after we remove the desired range.
+
+            // If the 2 starts are equal, we just update the start of the current entry
+            if entry.start() == range.start() {
+                self.elements[idx] =
+                    RangeInclusive::new(range.end().saturating_add(1), *entry.end());
+                return Some(());
+            // If the 2 ends are equal, we just update the end of the current entry
+            } else if entry.end() == range.end() {
+                self.elements[idx] =
+                    RangeInclusive::new(*entry.start(), range.start().saturating_sub(1));
+                return Some(());
+            // At this point the range we want to extract actually splits our current range in 2.
+            } else {
+                // Check we have enough room to further split this range. Which means that if the
+                // set is too fragmented, we either need to increase the capacity of the set, or
+                // create a new set.
+                if self.size < self.elements.len() {
+                    return None;
+                }
+                // We do have room, so we keep the low end in this current entry and insert the
+                // high end into a new entry
+                self.elements[idx] =
+                    RangeInclusive::new(*entry.start(), range.start().saturating_sub(1));
+                *self.elements.get_mut(self.size)? =
+                    RangeInclusive::new(range.end().saturating_add(1), *entry.end());
+                self.size = self.size.saturating_add(1);
+                return Some(());
+            }
+        }
+        // If we reached this point, it means there are no ranges that satify our call, so we
+        // return `None`
+        None
+    }
+
     pub fn len(&self) -> usize {
         self.size
     }
@@ -101,7 +154,15 @@ fn check_range(range: &RangeInclusive<u64>) -> bool {
     range.start() <= range.end()
 }
 
-pub fn overlap_or_touch(range1: &RangeInclusive<u64>, range2: &RangeInclusive<u64>) -> bool {
+fn contains(container: &RangeInclusive<u64>, contained: &RangeInclusive<u64>) -> bool {
+    // We do not support descending ranges
+    if !check_range(&container) || !check_range(&contained) {
+        return false;
+    }
+    container.start() <= contained.start() && contained.end() <= container.end()
+}
+
+fn overlap_or_touch(range1: &RangeInclusive<u64>, range2: &RangeInclusive<u64>) -> bool {
     // We do not support descending ranges
     if !check_range(&range1) || !check_range(&range2) {
         return false;
