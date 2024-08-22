@@ -54,7 +54,7 @@ pub struct AddressRange {
 }
 
 #[no_mangle]
-extern "C" fn entry() {
+extern "C" fn entry(bootloader_size: u32) {
     Serial::init();
 
     unsafe {
@@ -101,6 +101,7 @@ extern "C" fn entry() {
             if reg_sel_state.eflags & 1 == 1 || reg_sel_state.ebx == 0 { break; }
         }
 
+        println!("Bootloader size {}", bootloader_size);
         println!("Available memory: {:x?}", set.sum());
     }
     halt();

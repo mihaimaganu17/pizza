@@ -46,8 +46,10 @@ pm_entry:
     ; Set up the stack
     mov esp, 0x7c00
 
+    ; Push the bootloader size as an argument
+    push dword bootloader_size
     ; Jump to our Rust entry point
-    jmp entry_point
+    call entry_point
 ;--------------------------------------------------------------------------------------------------
 
 ; Global Descriptor Table for protected mode. Each entry is 8-bytes in size and referred to as a
@@ -88,3 +90,5 @@ times 510-($-$$) db 0
 db 0x55,0xAA
 
 incbin "pizza.flat"
+
+bootloader_size: equ ($-$$)
