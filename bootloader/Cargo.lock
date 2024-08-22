@@ -7,11 +7,16 @@ name = "bootloader"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "ops",
  "serial",
 ]
 
 [[package]]
 name = "cpu"
+version = "0.1.0"
+
+[[package]]
+name = "ops"
 version = "0.1.0"
 
 [[package]]

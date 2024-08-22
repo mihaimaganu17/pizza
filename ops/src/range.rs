@@ -147,6 +147,41 @@ impl RangeSet {
     pub fn ranges(&self) -> &[RangeInclusive<u64>] {
         &self.elements[..self.size]
     }
+
+    pub fn sum(&self) -> u64 {
+        let iter = RangeSetIter::new(&self);
+        let sum = iter.fold(0u64, |acc, range| {
+            // We compute the size of the range. We add 1 because we use `RangeInclusive`
+            let size = range.end().saturating_add(1).saturating_sub(*(range.start()));
+            acc.saturating_add(size)
+        });
+        sum
+    }
+}
+
+pub struct RangeSetIter<'a> {
+    set: &'a RangeSet,
+    idx: usize,
+}
+
+impl<'a> RangeSetIter<'a> {
+    pub fn new(set: &'a RangeSet) -> Self {
+        Self { set, idx: 0 }
+    }
+}
+
+impl<'a> Iterator for RangeSetIter<'a> {
+    type Item = &'a RangeInclusive<u64>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx == self.set.len() {
+            None
+        } else {
+            let range = self.set.ranges().get(self.idx)?;
+            self.idx = self.idx.saturating_add(1);
+            Some(range)
+        }
+    }
 }
 
 // Checks if ther start of the range is smaller or equal than the end
@@ -351,5 +386,17 @@ mod tests {
             ]
         );
         assert!(set.len() == 3);
+    }
+
+    #[test]
+    fn range_set_sum() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+
+        let sum = set.sum();
+
+        assert!(sum == 28);
     }
 }

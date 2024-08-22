@@ -3,9 +3,13 @@
 
 mod compiler_builtins;
 
-use core::panic::PanicInfo;
+use core::{
+    panic::PanicInfo,
+    ops::RangeInclusive,
+};
 use cpu::x86::halt;
-use serial::{Serial, print, println};
+use serial::{Serial, println};
+use ops::RangeSet;
 
 #[repr(C)]
 #[derive(Default, Debug)]
@@ -40,8 +44,8 @@ extern "C" {
 #[repr(C)]
 pub struct AddressRange {
     // Base address for this range
-    base_addr_low: u32,
-    base_addr_high: u32,
+    base_low: u32,
+    base_high: u32,
     // Length of this range
     length_low: u32,
     length_high: u32,
@@ -54,6 +58,9 @@ extern "C" fn entry() {
     Serial::init();
 
     unsafe {
+        // Type given to available RAM usable by the operating system
+        const RANGE_MEMORY: u32 = 1;
+        const RANGE_RESERVED: u32 = 2;
         let mut addr_range = AddressRange::default();
         let mut reg_sel_state = RegSelState::default();
 
@@ -66,18 +73,35 @@ extern "C" fn entry() {
         // Does not change between calls
         reg_sel_state.edi = &mut addr_range as *mut AddressRange as u32;
 
+        // Create a new set of memory ranges
+        let mut set = RangeSet::new();
+
         loop {
             // EAX and EDX register values differ between input and output
             reg_sel_state.eax = 0xe820;
             reg_sel_state.edx = u32::from_be_bytes(*b"SMAP");
             real_mode_int(0x15, &mut reg_sel_state);
-            println!("AddressRange {:x?}", addr_range);
+
+            // If the range is memory we can use
+            if addr_range.addr_type == RANGE_MEMORY {
+                // Compute the start and end for the set entry
+                let start = ((addr_range.base_high as u64) << 32) | addr_range.base_low as u64;
+                let length = ((addr_range.length_high as u64) << 32) | addr_range.length_low as u64;
+                // We are substracting 1 here because we use `RangeInclusive`
+                let end = start.saturating_add(length.saturating_sub(1));
+                // Create a new range
+                let entry = RangeInclusive::new(start, end);
+
+                set.insert(entry);
+            }
 
             // If either carry flag is set (error), or the continuation value (ebx) is zero after
             // this call, there are no other descriptors left to be read.
             // Last address range in AMD systems can be explained in qemu/hw/i386/pc.c:782
             if reg_sel_state.eflags & 1 == 1 || reg_sel_state.ebx == 0 { break; }
         }
+
+        println!("Available memory: {:x?}", set.sum());
     }
     halt();
 }
