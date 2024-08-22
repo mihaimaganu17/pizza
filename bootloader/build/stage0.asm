@@ -46,8 +46,12 @@ pm_entry:
     ; Set up the stack
     mov esp, 0x7c00
 
-    ; Push the bootloader size as an argument
-    push dword bootloader_size
+    ; Push the stack end as an argument
+    push esp
+    ; Push the bootloader end as an argument
+    push dword bootloader_end
+    ; Push the bootloader start as an argument
+    push dword bootloader_start
     ; Jump to our Rust entry point
     call entry_point
 ;--------------------------------------------------------------------------------------------------
@@ -91,4 +95,5 @@ db 0x55,0xAA
 
 incbin "pizza.flat"
 
-bootloader_size: equ ($-$$)
+bootloader_start: equ $$
+bootloader_end: equ $

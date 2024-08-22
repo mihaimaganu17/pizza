@@ -54,7 +54,7 @@ pub struct AddressRange {
 }
 
 #[no_mangle]
-extern "C" fn entry(bootloader_size: u32) {
+extern "C" fn entry(bootloader_start: u32, bootloader_end: u32, stack_addr: u32) {
     Serial::init();
 
     unsafe {
@@ -100,8 +100,23 @@ extern "C" fn entry(bootloader_size: u32) {
             // Last address range in AMD systems can be explained in qemu/hw/i386/pc.c:782
             if reg_sel_state.eflags & 1 == 1 || reg_sel_state.ebx == 0 { break; }
         }
+        // Remove the code and data used by the bootloader
+        let bootloader_range = RangeInclusive::new(
+            u64::from(bootloader_start),
+            u64::from(bootloader_end.saturating_sub(1)),
+        );
+        set.consume(&bootloader_range).expect("Failed to remove booloader range");
 
-        println!("Bootloader size {}", bootloader_size);
+        // Remove some space for the stack
+        let stack_size = 0x400;
+        let stack_range = RangeInclusive::new(
+            u64::from(stack_addr.saturating_sub(stack_size)),
+            u64::from(stack_addr.saturating_sub(1)),
+        );
+        set.consume(&stack_range).expect("Failed to remove stack range");
+
+        println!("{:#x?}", set.ranges());
+
         println!("Available memory: {:x?}", set.sum());
     }
     halt();
