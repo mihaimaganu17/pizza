@@ -144,6 +144,79 @@ impl RangeSet {
     /// or not. If a certain portion of the range is already discarded, we move past that and
     /// continue discarding.
     pub fn discard(&mut self, range: &RangeInclusive<u64>) -> Option<()> {
+        let tmp_range = range.clone();
+        // Check the range is not empty
+        if !check_range(&tmp_range) { return None; }
+
+        'discard: loop {
+            for idx in 0..self.size {
+                // It is safe to clone here because this is just a local copy we want to use
+                let entry = self.elements[idx].clone();
+                // If the 2 tmp_ranges equal, we just delete the entry
+                if entry == tmp_range {
+                    return self.delete(idx);
+                }
+
+                // If the current set entry is fully contained in the range, we remove it.
+                if contains(&tmp_range, &entry) {
+                    self.delete(idx);
+                    continue 'discard;
+                }
+
+                // If check if the ranges overlap. If they do not, we can just continue interating.
+                if !overlap_or_touch(&entry, &tmp_range) { continue; }
+
+                if contains(&entry, &tmp_range) {
+                // If the range is fully contained in the set entry, we split the loe and high non
+                // overlapping parts into 2 entries
+                    // Check we have enough room to further split this range. Which means that if
+                    // the set is too fragmented, we either need to increase the capacity of the
+                    // set, or create a new set.
+                    if self.size == self.elements.len() {
+                        return None;
+                    }
+                    // We do have room, so we keep the low end in this current entry and insert the
+                    // high end into a new entry
+                    let range_lower =
+                        RangeInclusive::new(*entry.start(), tmp_range.start().saturating_sub(1));
+                    // Checking we do not have an invalid range
+                    if check_range(&range_lower) {
+                        self.elements[idx] = range_lower;
+                    } else {
+                        self.delete(idx);
+                    }
+                    let range_upper =
+                        RangeInclusive::new(tmp_range.end().saturating_add(1), *entry.end());
+
+                    // Checking we do not have an invalid range
+                    if check_range(&range_upper) {
+                        *self.elements.get_mut(self.size)? = range_upper;
+                        self.size = self.size.saturating_add(1);
+                    }
+                    // Reset the loop
+                    continue 'discard;
+                // At this point, we know our desired range is overallping with the entry. We need
+                // to trimm the the set until we finish the entry
+                } else if entry.start() < tmp_range.start() {
+                    // If we are at this point, we still have to remove the lower half. So we remove
+                    // the currenty entry and further iterate with the remaining of the range
+                    self.elements[idx] = RangeInclusive::new(
+                        *entry.start(),
+                        tmp_range.start().saturating_sub(1),
+                    );
+                } else if entry.end() > tmp_range.end() {
+                    // If we are at this point, we still have to remove the upper half. So we
+                    // remove the currenty entry and further iterate with the remaining of the
+                    // range.
+                    self.elements[idx] = RangeInclusive::new(
+                        tmp_range.end().saturating_add(1),
+                        *entry.end(),
+                    );
+                }
+            }
+            break;
+        }
+
         Some(())
     }
     pub fn len(&self) -> usize {
@@ -404,5 +477,92 @@ mod tests {
         let sum = set.sum();
 
         assert!(sum == 28);
+    }
+
+    #[test]
+    fn range_set_discard_fragmented() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+
+        let range = RangeInclusive::new(5, 35);
+        set.discard(&range).expect("Could not discard range");
+
+        extern crate std;
+        std::println!("{:#?}", set.ranges());
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 4),
+                RangeInclusive::new(36, 40),
+            ]
+        );
+    }
+
+    #[test]
+    fn range_set_discard_start_and_end_equal() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(15, 20)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+
+        let range = RangeInclusive::new(5, 20);
+        set.discard(&range).expect("Could not discard range");
+
+        set.insert(RangeInclusive::new(40, 60)).expect("Could not insert range");
+
+        let range = RangeInclusive::new(30, 55);
+        set.discard(&range).expect("Could not discard range");
+
+        extern crate std;
+        std::println!("{:#?}", set.ranges());
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 4),
+                RangeInclusive::new(56, 60),
+            ]
+        );
+    }
+
+    #[test]
+    fn range_set_discard_fragments() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 10)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(20, 30)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(30, 40)).expect("Could not insert range");
+
+        let range = RangeInclusive::new(5, 8);
+        set.discard(&range).expect("Could not discard range");
+
+        set.insert(RangeInclusive::new(40, 60)).expect("Could not insert range");
+
+        let range = RangeInclusive::new(25, 55);
+        set.discard(&range).expect("Could not discard range");
+
+        let range = RangeInclusive::new(58, 60);
+        set.discard(&range).expect("Could not discard range");
+
+        let range = RangeInclusive::new(20, 23);
+        set.discard(&range).expect("Could not discard range");
+
+        let range = RangeInclusive::new(10, 10);
+        set.discard(&range).expect("Could not discard range");
+
+        extern crate std;
+        std::println!("{:#?}", set.ranges());
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0, 4),
+                RangeInclusive::new(9, 9),
+                RangeInclusive::new(56, 57),
+                RangeInclusive::new(24, 24),
+            ]
+        );
     }
 }
