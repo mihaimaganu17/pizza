@@ -140,6 +140,12 @@ impl RangeSet {
         None
     }
 
+    /// Discards the `range` from the available set. This does not care if the range already exists
+    /// or not. If a certain portion of the range is already discarded, we move past that and
+    /// continue discarding.
+    pub fn discard(&mut self, range: &RangeInclusive<u64>) -> Option<()> {
+        Some(())
+    }
     pub fn len(&self) -> usize {
         self.size
     }
