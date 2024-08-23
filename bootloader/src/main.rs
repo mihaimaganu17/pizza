@@ -12,6 +12,8 @@ use cpu::x86::halt;
 use serial::{Serial, println};
 use ops::RangeSet;
 
+extern crate alloc;
+
 struct GlobalAllocator;
 
 #[global_allocator]
@@ -140,6 +142,9 @@ extern "C" fn entry(bootloader_start: u32, bootloader_end: u32, stack_addr: u32)
         println!("{:#x?}", set.ranges());
 
         println!("Available memory: {:x?}", set.sum());
+
+        let mut test_vec = alloc::vec::Vec::new();
+        test_vec.push(5);
     }
     halt();
 }

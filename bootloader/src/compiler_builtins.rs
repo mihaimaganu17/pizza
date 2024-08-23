@@ -44,6 +44,20 @@ pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, len: usize) -> *mu
     dst
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn memmove(dst: *mut u8, src: *const u8, len: usize) -> *mut u8 {
+    memcpy(dst, src, len)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn strlen(s: *const u8) -> usize {
+    let mut size = 0usize;
+    while *s.add(size) != 0 {
+        size = size.saturating_add(1);
+    }
+    size
+}
+
 /// Compared byte string `s1` against byte string `s2`. Both strings are assumed to be `len` bytes
 /// long.
 #[no_mangle]
