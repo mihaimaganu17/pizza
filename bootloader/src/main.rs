@@ -6,10 +6,25 @@ mod compiler_builtins;
 use core::{
     panic::PanicInfo,
     ops::RangeInclusive,
+    alloc::{GlobalAlloc, Layout},
 };
 use cpu::x86::halt;
 use serial::{Serial, println};
 use ops::RangeSet;
+
+struct GlobalAllocator;
+
+#[global_allocator]
+static ALLOCATOR: GlobalAllocator = GlobalAllocator;
+
+unsafe impl GlobalAlloc for GlobalAllocator {
+    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
+        panic!("No alloc");
+    }
+    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
+        panic!("No dealloc");
+    }
+}
 
 #[repr(C)]
 #[derive(Default, Debug)]
@@ -114,6 +129,13 @@ extern "C" fn entry(bootloader_start: u32, bootloader_end: u32, stack_addr: u32)
             u64::from(stack_addr.saturating_sub(1)),
         );
         set.consume(&stack_range).expect("Failed to remove stack range");
+
+        // Remove everything up to the 64 KB boundary (0xff_ffff)
+        let bios_needs = RangeInclusive::new(
+            0,
+            0xffffff,
+        );
+        set.discard(&bios_needs).expect("Failed to remove bios needs");
 
         println!("{:#x?}", set.ranges());
 

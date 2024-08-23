@@ -565,4 +565,25 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn range_set_discard_bios() {
+        let mut set = RangeSet::new();
+        set.insert(RangeInclusive::new(0, 0x77ff)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(0x100000, 0x3ff3cfff)).expect("Could not insert range");
+        set.insert(RangeInclusive::new(0xaa34, 0x9c3ff)).expect("Could not insert range");
+
+        let range = RangeInclusive::new(0, 0xfffff);
+        set.discard(&range).expect("Could not discard range");
+
+        extern crate std;
+        std::println!("{:#?}", set.ranges());
+
+        assert!(
+            set.ranges() ==
+            &[
+                RangeInclusive::new(0x100000, 0x3ff3cfff)
+            ]
+        );
+    }
 }
