@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 cpu = { path = "../cpu", version = "0.1.0"}
 serial = { path = "../serial", version = "0.1.0"}
+sync = { path = "../sync", version = "0.1.0"}
 ops = { path = "../ops", version = "0.1.0" }

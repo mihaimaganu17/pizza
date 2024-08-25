@@ -3,8 +3,12 @@
 use sync::LockCell;
 use cpu::x86::{out_u8, in_u8};
 
+pub fn init() {
+    Serial::init();
+}
+
 #[derive(Debug)]
-pub struct Serial {
+struct Serial {
     ports: [Option<u16>; 4],
 }
 

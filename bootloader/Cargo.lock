@@ -9,6 +9,7 @@ dependencies = [
  "cpu",
  "ops",
  "serial",
+ "sync",
 ]
 
 [[package]]
