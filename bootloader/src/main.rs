@@ -16,10 +16,24 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    let mut test_vec = alloc::vec::Vec::new();
-    test_vec.push(5);
+    {
+        let mut test_vec = alloc::vec::Vec::new();
+        test_vec.push(5);
+        test_vec.push(1000);
+        test_vec.push(5);
+        test_vec.push(5);
+        test_vec.push(5);
+        test_vec.push(1000);
+        test_vec.push(1000);
+        test_vec.push(1000);
 
-    println!("tes {:?}", test_vec);
+        println!("tes {:?}", test_vec);
+        let mut test_vec2 = alloc::vec::Vec::new();
+        test_vec2.push(5);
+    }
+
+    let mut reset_alloc_ptr = alloc::vec::Vec::new();
+    reset_alloc_ptr.push(10);
 
     halt();
 }
