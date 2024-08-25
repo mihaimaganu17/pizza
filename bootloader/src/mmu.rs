@@ -6,9 +6,10 @@ use core::{
     ops::RangeInclusive,
 };
 use crate::asm_ffi::{RegSelState, real_mode_int};
+use crate::println;
 
 // Stores a `RangeSet` containing all the free memory reported by the e820
-pub static PHYSICAL_MEMORY: LockCell<Option<RangeSet>> = LockCell::new(None);
+static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
 
 // Structure used by the memory manager to allocate memory. This implements `GlobalAlloc` crate in
 // order to be used by Rust.
@@ -18,11 +19,49 @@ struct GlobalAllocator;
 static ALLOCATOR: GlobalAllocator = GlobalAllocator;
 
 unsafe impl GlobalAlloc for GlobalAllocator {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        panic!("No alloc");
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
+
+        let ptr = phys_mem_lock.as_mut()
+            .and_then(|mmu| mmu.allocate(layout.size() as u64, layout.align() as u64))
+            .unwrap_or(0) as *mut u8;
+        println!("ptr {:#?}", ptr);
+        ptr
     }
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        panic!("No dealloc");
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
+        let ptr = ptr as u64;
+        // Compute the range to be deallocated
+        let range = RangeInclusive::new(ptr, ptr.saturating_add(layout.size() as u64));
+
+        phys_mem_lock.as_mut()
+            .and_then(|mmu| mmu.deallocate(range)).unwrap();
+    }
+}
+
+pub struct Mmu {
+    // Describes the current free memory we have left on the device
+    set: RangeSet,
+}
+
+impl Mmu {
+    pub fn new(set: RangeSet) -> Self {
+        Self { set }
+    }
+
+    /// Tries to allocate a region from physical memory with `size` bytes and aligned to a multiple
+    /// of `align` bytes. Returns the address of the new allocated address if allocation was
+    /// successful or null otherwise.
+    /// Allocation could fail for one of the following reasons:
+    /// - Memory is too fragmented and there isn't room to fit a continuous new block
+    /// - The allocation does not fit into the pointer size of the target memory. For example
+    /// trying to allocat 0xff_ffff_ffff in a 16-bit mode.
+    pub fn allocate(&mut self, size: u64, align: u64) -> Option<usize> {
+        self.set.allocate(size, align)
+    }
+
+    pub fn deallocate(&mut self, range: RangeInclusive<u64>) -> Option<()> {
+        self.set.insert(range)
     }
 }
 
@@ -89,7 +128,7 @@ pub fn init() -> Option<()> {
         // Remove everything up to the 64 KB boundary (0xff_ffff)
         let bios_needs = RangeInclusive::new(
             0,
-            0xffffff,
+            1024 * 1024 - 1,
         );
         set.discard(&bios_needs)?;
 
@@ -99,6 +138,7 @@ pub fn init() -> Option<()> {
     // Acquire a lock for the `RangeSet`
     let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
     // Insert the set
-    *phys_mem_lock = Some(set);
+    *phys_mem_lock = Some(Mmu::new(set));
+
     Some(())
 }

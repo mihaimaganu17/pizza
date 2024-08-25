@@ -219,6 +219,48 @@ impl RangeSet {
 
         Some(())
     }
+
+    /// Tries to allocate a region from physical memory with `size` bytes and aligned to a multiple
+    /// of `align` bytes. Returns the address of the new allocated address if allocation was
+    /// successful or null otherwise.
+    /// Allocation could fail for one of the following reasons:
+    /// - Memory is too fragmented and there isn't room to fit a continuous new block
+    /// - The allocation does not fit into the pointer size of the target memory. For example
+    /// trying to allocat 0xff_ffff_ffff in a 16-bit mode.
+    pub fn allocate(&mut self, size: u64, align: u64) -> Option<usize> {
+        // Validate the alignment is a power of 2
+        if align.count_ones() != 1 {
+            return None;
+        }
+        let align_mask = align.saturating_sub(1);
+        // Go through each of the entries
+        for idx in 0..self.size {
+            let entry = self.elements.get(idx)?;
+            // First we compute how much bytes we need to align the pointer to the allocation
+            let bytes_to_align = (align - (entry.start() & align_mask)) & align_mask;
+            // Compute the start and the end of the block we want to allocate
+            let start = entry.start().saturating_add(bytes_to_align);
+            // We use `RangeInclusive`, that is why we substract 1
+            let end = start.saturating_add(size).saturating_add(bytes_to_align).saturating_sub(1);
+            // Check if the start and the end fit into the target's pointer size. If they do not,
+            // try another range.
+            if !usize::try_from(start).is_ok() || !usize::try_from(end).is_ok() {
+                continue;
+            }
+            // Check the entry fits into the range. We cannot have ranges with a start bigger than
+            // the end, but we check for both for completeness
+            let alloc_range = RangeInclusive::new(start, end);
+
+            if entry.end() >= alloc_range.end() {
+                self.consume(&alloc_range)?;
+                // Return the pointer to the new range
+                return usize::try_from(start).ok();
+            }
+        }
+        // If we reached this point, we did not find an entry and we return
+        None
+    }
+
     pub fn len(&self) -> usize {
         self.size
     }
@@ -489,9 +531,6 @@ mod tests {
         let range = RangeInclusive::new(5, 35);
         set.discard(&range).expect("Could not discard range");
 
-        extern crate std;
-        std::println!("{:#?}", set.ranges());
-
         assert!(
             set.ranges() ==
             &[
@@ -515,9 +554,6 @@ mod tests {
 
         let range = RangeInclusive::new(30, 55);
         set.discard(&range).expect("Could not discard range");
-
-        extern crate std;
-        std::println!("{:#?}", set.ranges());
 
         assert!(
             set.ranges() ==
@@ -552,9 +588,6 @@ mod tests {
         let range = RangeInclusive::new(10, 10);
         set.discard(&range).expect("Could not discard range");
 
-        extern crate std;
-        std::println!("{:#?}", set.ranges());
-
         assert!(
             set.ranges() ==
             &[
@@ -575,9 +608,6 @@ mod tests {
 
         let range = RangeInclusive::new(0, 0xfffff);
         set.discard(&range).expect("Could not discard range");
-
-        extern crate std;
-        std::println!("{:#?}", set.ranges());
 
         assert!(
             set.ranges() ==

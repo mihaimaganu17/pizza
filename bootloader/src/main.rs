@@ -16,14 +16,10 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    let phys_mem_lock = crate::mmu::PHYSICAL_MEMORY.lock();
-
-    if let Some(phys_mem) = &*phys_mem_lock {
-        println!("{:#x?}", phys_mem.ranges());
-        println!("Available memory: {:x?}", phys_mem.sum());
-    }
     let mut test_vec = alloc::vec::Vec::new();
     test_vec.push(5);
+
+    println!("tes {:?}", test_vec);
 
     halt();
 }
