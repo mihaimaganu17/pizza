@@ -26,3 +26,22 @@ extern "C" {
     // Call a PXE API service given by `pxe_code` id.
     fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
 }
+
+// Represents a x86 cpu real mode address, which is constructred by a segment u16 value and a u16
+// offset into that segment
+#[derive(Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RealModeAddr {
+    off: u16,
+    seg: u16,
+}
+
+impl RealModeAddr {
+    pub fn new(seg: u16, off: u16) -> Self {
+        Self { seg, off }
+    }
+    // Returns the real mode address as a linear value
+    pub fn linear(&self) -> u32 {
+        (u32::from(self.seg) << 4) + u32::from(self.off)
+    }
+}

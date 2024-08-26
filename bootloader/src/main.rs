@@ -4,9 +4,10 @@
 mod compiler_builtins;
 mod asm_ffi;
 mod mmu;
+mod pxe;
 
 use core::panic::PanicInfo;
-use cpu::x86::halt;
+use cpu::x86;
 use serial::println;
 
 extern crate alloc;
@@ -16,26 +17,14 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    {
-        let mut test_vec = alloc::vec::Vec::new();
-        test_vec.push(5);
-        test_vec.push(1000);
-        test_vec.push(5);
-        test_vec.push(5);
-        test_vec.push(5);
-        test_vec.push(1000);
-        test_vec.push(1000);
-        test_vec.push(1000);
+    let screen = unsafe {
+        core::slice::from_raw_parts_mut(0xb8000 as *mut u16, 80 * 25)
+    };
 
-        println!("tes {:?}", test_vec);
-        let mut test_vec2 = alloc::vec::Vec::new();
-        test_vec2.push(5);
-    }
+    screen.iter_mut().for_each(|x| *x = 0x0f55);
+    pxe::build();
 
-    let mut reset_alloc_ptr = alloc::vec::Vec::new();
-    reset_alloc_ptr.push(10);
-
-    halt();
+    x86::halt();
 }
 
 #[panic_handler]
@@ -48,5 +37,5 @@ fn panic(info: &PanicInfo) -> ! {
     }
     // Print the message for the panic
     println!("{:?}", info.message());
-    halt()
+    x86::halt()
 }

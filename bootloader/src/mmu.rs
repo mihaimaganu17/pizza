@@ -29,13 +29,18 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         ptr
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        // We do not have anything to free for zero sized types.
+        if layout.size() == 0 {
+            return;
+        }
         let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
         let ptr = ptr as u64;
+        let end = ptr.saturating_add(layout.size() as u64).saturating_sub(1);
         // Compute the range to be deallocated
-        let range = RangeInclusive::new(ptr, ptr.saturating_add(layout.size() as u64));
+        let range = RangeInclusive::new(ptr, end);
 
         phys_mem_lock.as_mut()
-            .and_then(|mmu| mmu.deallocate(range)).unwrap();
+            .and_then(|mmu| mmu.deallocate(range)).expect("Cannot free memory");
     }
 }
 
@@ -137,6 +142,8 @@ pub fn init() -> Option<()> {
 
     // Acquire a lock for the `RangeSet`
     let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
+    // If we previously allocated, panic
+    assert!(phys_mem_lock.is_none(), "Physical memory has already been allocated");
     // Insert the set
     *phys_mem_lock = Some(Mmu::new(set));
 
