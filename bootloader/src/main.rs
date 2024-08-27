@@ -18,7 +18,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    pxe::build();
+    pxe::build().expect("Failed to call PXE Api");
 
     x86::halt();
 }

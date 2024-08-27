@@ -1,4 +1,11 @@
+use core::ops::Range;
+
 #[derive(Debug)]
 pub enum PxeError {
-    GetCachedInfoFailed,
+    InstallCheck,
+    PxeNvPlus,
+    Pxe,
+    ApiStatus(u16),
+    FilenameTooLarge,
+    InvalidRange(Range<usize>),
 }

@@ -1,4 +1,6 @@
 //! Module containing PXE and iPXE utility functions
+mod preboot;
+mod tftp;
 mod api;
 
 use crate::{
@@ -6,6 +8,7 @@ use crate::{
     println,
     error::PxeError,
 };
+use preboot::*;
 use api::*;
 
 #[derive(Debug)]
@@ -214,15 +217,47 @@ impl Pxe {
                 self.entry_point_sp.off,
                 0,
                 &mut cached_info as *mut _ as u16,
-                opcode::GET_CACHED_INFO
+                opcode::PREBOOT_GET_CACHED_INFO
             )
         };
 
         if cached_info.status != 0 {
-            return Err(PxeError::GetCachedInfoFailed);
+            return Err(PxeError::ApiStatus(cached_info.status));
         }
 
         Ok((cached_info, bootp_packet))
+    }
+
+    /// Querries the TFTP server for the file size of the given `filename`, which is a ASCI null
+    /// terminated string of at most 128 characters.
+    pub fn tftp_get_file_size(&self, server_ip: &Ip4, filename: &[u8]) -> Result<u32, PxeError> {
+        let mut get_file_size = tftp::GetFileSize::default();
+
+        if filename.len() + 1 > get_file_size.file_name.0.len() {
+            return Err(PxeError::FilenameTooLarge);
+        }
+
+        get_file_size.file_name.0.get_mut(0..filename.len())
+            .ok_or(PxeError::InvalidRange(0..filename.len()))?
+            .copy_from_slice(filename);
+
+        get_file_size.server_ip = *server_ip;
+
+        unsafe {
+            pxe_call(
+                self.entry_point_sp.seg,
+                self.entry_point_sp.off,
+                0,
+                &mut get_file_size as *mut _ as u16,
+                opcode::TFTP_GET_FILE_SIZE,
+            )
+        };
+
+        if get_file_size.status != 0 {
+            return Err(PxeError::ApiStatus(get_file_size.status));
+        }
+
+        Ok(get_file_size.file_size)
     }
 }
 
@@ -242,21 +277,24 @@ pub fn install_check() -> Option<RealModeAddr> {
     }
 }
 
-pub fn build() -> Option<()> {
-    let pxenv_addr = install_check()?;
+pub fn build() -> Result<(), PxeError> {
+    let pxenv_addr = install_check()
+        .ok_or(PxeError::InstallCheck)?;
 
-    let pxenv = PxeNvPlus::from_real_mode(pxenv_addr)?;
+    let pxenv = PxeNvPlus::from_real_mode(pxenv_addr)
+        .ok_or(PxeError::PxeNvPlus)?;
 
     // If the API version is 0x201 or higher, we have a `!PXE` structure
     let pxe = if pxenv.version() >= 0x201 {
-        Pxe::from_real_mode(pxenv.pxe_ptr())
+        Pxe::from_real_mode(pxenv.pxe_ptr()).ok_or(PxeError::Pxe)
     } else {
-        None
+        Err(PxeError::Pxe)
     }?;
 
-    let (_cached_info, bootp_packet)= pxe.get_cached_info().ok()?;
+    let (_cached_info, bootp_packet)= pxe.get_cached_info()?;
 
-    println!("{:x?}", bootp_packet);
+    let file_size = pxe.tftp_get_file_size(&bootp_packet.next_server_ip, b"test_file")?;
+    println!("{:?}", file_size);
 
-    Some(())
+    Ok(())
 }
