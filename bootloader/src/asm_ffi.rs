@@ -24,7 +24,7 @@ extern "C" {
     // selector state from `reg_sel_state`.
     pub fn real_mode_int(int_code: u8, reg_sel_state: *mut RegSelState);
     // Call a PXE API service given by `pxe_code` id.
-    fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
+    pub fn pxe_call(code_seg: u16, seg_offset: u16, data_seg: u16, data_off: u16, pxe_code: u16);
 }
 
 // Represents a x86 cpu real mode address, which is constructred by a segment u16 value and a u16
@@ -32,8 +32,8 @@ extern "C" {
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct RealModeAddr {
-    off: u16,
-    seg: u16,
+    pub off: u16,
+    pub seg: u16,
 }
 
 impl RealModeAddr {

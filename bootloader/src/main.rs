@@ -5,6 +5,7 @@ mod compiler_builtins;
 mod asm_ffi;
 mod mmu;
 mod pxe;
+mod error;
 
 use core::panic::PanicInfo;
 use cpu::x86;
@@ -17,11 +18,6 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    let screen = unsafe {
-        core::slice::from_raw_parts_mut(0xb8000 as *mut u16, 80 * 25)
-    };
-
-    screen.iter_mut().for_each(|x| *x = 0x0f55);
     pxe::build();
 
     x86::halt();

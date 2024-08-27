@@ -263,9 +263,9 @@ _pxe_call:
     movzx esi, word [esp + (4 * 8 + 20)]; arg5, pxe code for the function to be called
 
     ; Push parameters for the PXE call
-    push si,
-    push dx,
     push cx,
+    push dx,
+    push si,
 
     ; Setting up the far return that will make pxe give execution back after it executes the call
     mov ebp, (.ret_from_pxe_call - image_base)
@@ -291,15 +291,16 @@ _pxe_call:
     ; Clear up the stack from the last 3 arguments we passed to pxe
     add sp, 3 * 2
 
+    ; Load the GDT data selector from the program that called us. Image base is 32-bit, translated
+    ; into real mode this means -> high 4 bytes for the selector and low 4 bytes for the offset
+    mov ax, (image_base >> 4)
+    mov ds, ax
+
     ; Set the PE flag in cr0 to enable protected mode
     mov eax, cr0
     or eax, 1
     mov cr0, eax
 
-    ; Load the GDT data selector from the program that called us. Image base is 32-bit, translated
-    ; into real mode this means -> high 4 bytes for the selector and low 4 bytes for the offset
-    mov ax, (image_base >> 4)
-    mov ds, ax
     ; Offset of the GDT
     mov eax, (pm_gdtr - image_base)
     lgdt [eax]

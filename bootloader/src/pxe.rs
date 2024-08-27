@@ -1,6 +1,12 @@
 //! Module containing PXE and iPXE utility functions
-use crate::asm_ffi::{real_mode_int, RegSelState, RealModeAddr};
-use crate::println;
+mod api;
+
+use crate::{
+    asm_ffi::{real_mode_int, pxe_call, RegSelState, RealModeAddr},
+    println,
+    error::PxeError,
+};
+use api::*;
 
 #[derive(Debug)]
 #[repr(packed)]
@@ -192,7 +198,35 @@ impl Pxe {
 
         Some(pxenv)
     }
+
+    pub fn get_cached_info(&self) -> Result<GetCachedInfo, PxeError> {
+        let mut cached_info = GetCachedInfo::default();
+        let mut tmp_buffer = [0u8; 256];
+
+        cached_info.packet_type = PXENV_PACKET_TYPE_DHCP_ACK;
+        cached_info.buffer_size = 256;
+        cached_info.buffer.off = &mut tmp_buffer as *mut _ as u16;
+
+        unsafe {
+            pxe_call(
+                self.entry_point_sp.seg,
+                self.entry_point_sp.off,
+                0,
+                &mut cached_info as *mut _ as u16,
+                opcode::GET_CACHED_INFO
+            )
+        };
+
+        if cached_info.status != 0 {
+            return Err(PxeError::GetCachedInfoFailed(cached_info.status));
+        }
+
+        println!("{:x?}", &tmp_buffer[..]);
+
+        Ok(cached_info)
+    }
 }
+
 
 /// Checks wheter PXE is installed through the real mode interrupt 0x1A, function 0x5650
 pub fn install_check() -> Option<RealModeAddr> {
@@ -220,6 +254,8 @@ pub fn build() -> Option<()> {
     } else {
         None
     }?;
+
+    let _cached_info = pxe.get_cached_info().ok()?;
 
     Some(())
 }
