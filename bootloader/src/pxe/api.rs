@@ -52,7 +52,7 @@ impl Default for BootFile {
 }
 
 #[derive(Debug, Default)]
-#[repr(packed)]
+#[repr(C)]
 pub struct BootCachedPacket {
     // Message opcode (1 is for Request and 2 is for Reply)
     _opcode: u8,
