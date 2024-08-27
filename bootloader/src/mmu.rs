@@ -90,7 +90,7 @@ pub fn init() -> Option<()> {
     let set = unsafe {
         // Type given to available RAM usable by the operating system
         const RANGE_MEMORY: u32 = 1;
-        const RANGE_RESERVED: u32 = 2;
+        const _RANGE_RESERVED: u32 = 2;
         let mut addr_range = AddressRange::default();
         let mut reg_sel_state = RegSelState::default();
 

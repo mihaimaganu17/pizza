@@ -19,9 +19,9 @@ pub struct PxeNvPlus {
     // Lenght of the structure in bytes. Used when computing the checksum
     length: u8,
     // Used to make 8-bit checksum of this structure equal to zero.
-    checksum: u8,
+    _checksum: u8,
     // Far pointer to real-mode PXE/UNDI API entry point. May be CS:0000h
-    rm_entry: RealModeAddr,
+    _rm_entry: RealModeAddr,
     // 32-bit offset to protected-mode PXE/UNDI API entry point. Not to be used! For protected-mode
     // API services, use the !PXE structure
     _pm_offset: u32,
@@ -102,11 +102,11 @@ impl PxeNvPlus {
 #[repr(packed(2))]
 pub struct SegDesc {
     // The real mode segment or protected mode selector.
-    segment_address: u16,
+    _segment_address: u16,
     // The physical address of the segment
-    physical_address: u32,
+    _physical_address: u32,
     // Size of the segment.
-    seg_size: u16,
+    _seg_size: u16,
 }
 
 #[derive(Debug)]
@@ -199,13 +199,14 @@ impl Pxe {
         Some(pxenv)
     }
 
-    pub fn get_cached_info(&self) -> Result<GetCachedInfo, PxeError> {
+    pub fn get_cached_info(&self) -> Result<(GetCachedInfo, BootCachedPacket), PxeError> {
         let mut cached_info = GetCachedInfo::default();
-        let mut tmp_buffer = [0u8; 256];
+        // Create a default Bootstrap Protocol packet.
+        let mut bootp_packet = BootCachedPacket::default();
 
         cached_info.packet_type = PXENV_PACKET_TYPE_DHCP_ACK;
-        cached_info.buffer_size = 256;
-        cached_info.buffer.off = &mut tmp_buffer as *mut _ as u16;
+        cached_info.buffer_size = core::mem::size_of::<BootCachedPacket>() as u16;
+        cached_info.buffer.off = &mut bootp_packet as *mut _ as u16;
 
         unsafe {
             pxe_call(
@@ -218,12 +219,10 @@ impl Pxe {
         };
 
         if cached_info.status != 0 {
-            return Err(PxeError::GetCachedInfoFailed(cached_info.status));
+            return Err(PxeError::GetCachedInfoFailed);
         }
 
-        println!("{:x?}", &tmp_buffer[..]);
-
-        Ok(cached_info)
+        Ok((cached_info, bootp_packet))
     }
 }
 
@@ -255,7 +254,9 @@ pub fn build() -> Option<()> {
         None
     }?;
 
-    let _cached_info = pxe.get_cached_info().ok()?;
+    let (_cached_info, bootp_packet)= pxe.get_cached_info().ok()?;
+
+    println!("{:x?}", bootp_packet);
 
     Some(())
 }
