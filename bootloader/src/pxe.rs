@@ -8,8 +8,11 @@ use crate::{
     println,
     error::PxeError,
 };
+use sync::LockCell;
 use preboot::*;
 use api::*;
+
+static PXE_LOCK: LockCell<()> = LockCell::new(());
 
 #[derive(Debug)]
 #[repr(packed)]
@@ -278,6 +281,9 @@ pub fn install_check() -> Option<RealModeAddr> {
 }
 
 pub fn build() -> Result<(), PxeError> {
+    // Make sure this is multithread safe. The lock gets dropped at the end of this function
+    let _pxe_lock = PXE_LOCK.lock();
+
     let pxenv_addr = install_check()
         .ok_or(PxeError::InstallCheck)?;
 
