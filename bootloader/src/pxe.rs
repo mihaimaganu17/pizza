@@ -9,6 +9,7 @@ use crate::{
     error::PxeError,
 };
 use sync::LockCell;
+use alloc::vec::Vec;
 use preboot::*;
 use api::*;
 
@@ -231,7 +232,7 @@ impl Pxe {
         Ok((cached_info, bootp_packet))
     }
 
-    /// Querries the TFTP server for the file size of the given `filename`, which is a ASCI null
+    /// Queries the TFTP server for the file size of the given `filename`, which is a ASCI null
     /// terminated string of at most 128 characters.
     pub fn tftp_get_file_size(&self, server_ip: &Ip4, filename: &[u8]) -> Result<u32, PxeError> {
         let mut get_file_size = tftp::GetFileSize::default();
@@ -262,6 +263,113 @@ impl Pxe {
 
         Ok(get_file_size.file_size)
     }
+
+    /// Opens a TFTP connection for reading/writing. At any one time there can be only one open
+    /// connection. The connection must be closed before another can be opened. Returns the
+    /// negotiated size of TFTP packet, in bytes, which can be equal to the requested size or less.
+    /// Warning: Service cannot be used if an MTFTP or UDP connection is active.
+    /// Service cannot be used in protected mode if the StatusCallout field in the !PXE structure
+    /// is set to zero.
+    /// Service cannot be used with a 32-bit stack segment.
+    pub fn tftp_open(&self, server_ip: &Ip4, filename: &[u8], size: u16) -> Result<u16, PxeError> {
+        let mut tftp_open = tftp::TftpOpen::default();
+
+        if filename.len() + 1 > tftp_open.file_name.0.len() {
+            return Err(PxeError::FilenameTooLarge);
+        }
+
+        tftp_open.file_name.0.get_mut(0..filename.len())
+            .ok_or(PxeError::InvalidRange(0..filename.len()))?
+            .copy_from_slice(filename);
+
+        // IPs and Ports in this structure have to be network order (big endian)
+        tftp_open.server_ip = *server_ip;
+        tftp_open.packet_size = size;
+        tftp_open.port = 69u16.to_be();
+
+        unsafe {
+            pxe_call(
+                self.entry_point_sp.seg,
+                self.entry_point_sp.off,
+                0,
+                &mut tftp_open as *mut _ as u16,
+                opcode::TFTP_OPEN,
+            )
+        };
+
+        if tftp_open.status != 0 {
+            return Err(PxeError::ApiStatus(tftp_open.status));
+        }
+
+        Ok(tftp_open.packet_size)
+    }
+
+    /// Reads the `file_name` from the open TFTP connection, where `file_size` is the size of the
+    /// entire file and `buffer_size` is the size of the packet.
+    pub fn tftp_read(&self, size: u32) -> Result<Vec<u8>, PxeError> {
+        // Allocate a new buffer to store the data. We allocate directly, such that we avoid
+        // multiple allocations
+        let mut buffer = Vec::with_capacity(size as usize);
+
+        const BUFFER_SIZE: u16 = 512;
+
+        // Create a new read structure
+        let mut tftp_read = tftp::TftpRead::default();
+        let mut temp_buffer = [0u8; BUFFER_SIZE as usize];
+        tftp_read.buffer = RealModeAddr { off: &mut temp_buffer as *mut _ as u16, seg: 0u16 };
+
+        loop {
+            unsafe {
+                pxe_call(
+                    self.entry_point_sp.seg,
+                    self.entry_point_sp.off,
+                    0,
+                    &mut tftp_read as *mut _ as u16,
+                    opcode::TFTP_READ,
+                )
+            };
+
+            // If status is unsuccessful or if the buffer size is corrupted, return error
+            if tftp_read.status != 0 || BUFFER_SIZE < tftp_read.buffer_size {
+                return Err(PxeError::ApiStatus(tftp_read.status));
+            }
+
+            // Extend our allocation by the contents of the buffer
+            buffer.extend(&temp_buffer[..tftp_read.buffer_size as usize]);
+
+            // If we read less than the packer size, we know this is the last packet
+            if tftp_read.buffer_size < BUFFER_SIZE {
+                break;
+            }
+        }
+
+        Ok(buffer)
+    }
+
+    /// Close a previously opened TFTP connection.
+    /// Warning: Service cannot be used if there is not an active MTFTP connection.
+    /// Service cannot be used in protected mode if the StatusCallout field in the !PXE structure
+    /// is set to zero.
+    /// Service cannot be used with a 32-bit stack segment.
+    pub fn tftp_close(&self) -> Result<(), PxeError> {
+        let mut status: u16 = 0;
+
+        unsafe {
+            pxe_call(
+                self.entry_point_sp.seg,
+                self.entry_point_sp.off,
+                0,
+                &mut status as *mut _ as u16,
+                opcode::TFTP_CLOSE,
+            )
+        };
+
+        if status != 0 {
+            return Err(PxeError::ApiStatus(status));
+        }
+
+        Ok(())
+    }
 }
 
 
@@ -280,6 +388,7 @@ pub fn install_check() -> Option<RealModeAddr> {
     }
 }
 
+/// Guarder call(in multithreaded contexts) to PXE installation check and TFTP new file downloads.
 pub fn build() -> Result<(), PxeError> {
     // Make sure this is multithread safe. The lock gets dropped at the end of this function
     let _pxe_lock = PXE_LOCK.lock();
@@ -299,8 +408,17 @@ pub fn build() -> Result<(), PxeError> {
 
     let (_cached_info, bootp_packet)= pxe.get_cached_info()?;
 
-    let file_size = pxe.tftp_get_file_size(&bootp_packet.next_server_ip, b"test_file")?;
-    println!("{:?}", file_size);
+    let file_name = b"test_file2";
+
+    // Get the file size of the desired file
+    let file_size = pxe.tftp_get_file_size(&bootp_packet.next_server_ip, file_name)?;
+    // Open a TFTP connection and negotiate for a packet size
+    let _negotiated_packet_size = pxe.tftp_open(&bootp_packet.next_server_ip, file_name, 512)?;
+    // Read the file
+    let downloaded = pxe.tftp_read(file_size)?;
+    println!("We downloaded {} bytes", downloaded.len());
+    // Close the TFTP connection
+    let _ = pxe.tftp_close()?;
 
     Ok(())
 }

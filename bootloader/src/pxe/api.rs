@@ -36,6 +36,9 @@ impl Default for BootFile {
 }
 
 pub mod opcode {
+    pub const TFTP_OPEN: u16 = 0x0020;
+    pub const TFTP_CLOSE: u16 = 0x0021;
+    pub const TFTP_READ: u16 = 0x0022;
     pub const TFTP_GET_FILE_SIZE: u16 = 0x0025;
     pub const PREBOOT_GET_CACHED_INFO: u16 = 0x0071;
 }

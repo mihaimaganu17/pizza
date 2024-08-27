@@ -44,4 +44,23 @@ impl RealModeAddr {
     pub fn linear(&self) -> u32 {
         (u32::from(self.seg) << 4) + u32::from(self.off)
     }
+
+    /// Creates a new real mode address where segment is the most significant nibble(4th nibble,
+    /// starting at 0) shift 24 and address is the 4 least significant nibbles. If we receive a value
+    /// which cannot fit in 20 bits, we return `None`.
+    /// A nibble is half a byte.
+    pub fn from_linear(addr: u32) -> Option<Self> {
+        if addr > (1 << 20) - 1 {
+            return None;
+        }
+
+        // Segment is the 4th nibble
+        let seg = (((0xf << 16) & addr) >> 4) as u16;
+        let off = (addr & 0xffff) as u16;
+
+        Some(Self {
+            off,
+            seg,
+        })
+    }
 }

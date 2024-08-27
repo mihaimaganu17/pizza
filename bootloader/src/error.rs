@@ -8,4 +8,5 @@ pub enum PxeError {
     ApiStatus(u16),
     FilenameTooLarge,
     InvalidRange(Range<usize>),
+    InvalidBufferAddr(u32),
 }
