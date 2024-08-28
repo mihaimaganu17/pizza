@@ -285,7 +285,7 @@ _pxe_call:
     ; it will return execution to `.ret_from_pxe_call`
     iretw
 
-.ret_from_pxe_call
+.ret_from_pxe_call:
     ; Clear interrupts
     cli
     ; Clear up the stack from the last 3 arguments we passed to pxe

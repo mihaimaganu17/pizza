@@ -49,7 +49,7 @@ impl RealModeAddr {
     /// starting at 0) shift 24 and address is the 4 least significant nibbles. If we receive a value
     /// which cannot fit in 20 bits, we return `None`.
     /// A nibble is half a byte.
-    pub fn from_linear(addr: u32) -> Option<Self> {
+    pub fn _from_linear(addr: u32) -> Option<Self> {
         if addr > (1 << 20) - 1 {
             return None;
         }

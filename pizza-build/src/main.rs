@@ -15,23 +15,23 @@ fn main() {
     let nasm_build = Command::new("nasm")
         .current_dir("../bootloader/build")
         .args(["-f", "win32", &format!("-Dimage_base={}", BOOTLOADER_BASE), "-o", "utils.obj", "utils.asm"])
-        .output()
+        .status()
         .expect("Failed to compile assembly utilites for the bootloader to use");
 
-    // If the build status was not successful, print the error
-    if !nasm_build.status.success() {
-        println!("Bootloader nasm compile error: {:?}", String::from_utf8(nasm_build.stderr));
+    // If the build status was not successful stop the building
+    if !nasm_build.success() {
+        std::process::exit(1);
     }
 
     // First, build the bootloader
     let build_bootloader = Command::new("cargo")
         .current_dir("../bootloader")
         .args(["build", "--target", "i586-pc-windows-msvc", "--release"])
-        .output()
+        .status()
         .expect("Failed to build bootloader!");
-    // If the build status was not successful, print the error
-    if !build_bootloader.status.success() {
-        println!("Bootloader build error: {:?}", String::from_utf8(build_bootloader.stderr));
+    // If the build status was not successful stop the building
+    if !build_bootloader.success() {
+        std::process::exit(1);
     }
 
     // Get the bytes of the bootloader that we've built above
@@ -76,12 +76,12 @@ fn main() {
     let nasm_build = Command::new("nasm")
         .current_dir("../bootloader/build")
         .args(["-f", "bin", &format!("-Dentry_point={}", entry_point), "-o", boot_flat.to_str().unwrap(), "stage0.asm"])
-        .output()
+        .status()
         .expect("Failed to compile bootloader with nasm");
 
-    // If the build status was not successful, print the error
-    if !nasm_build.status.success() {
-        println!("Bootloader nasm compile error: {:?}", String::from_utf8(nasm_build.stderr));
+    // If the build status was not successful, stop building
+    if !nasm_build.success() {
+        std::process::exit(1);
     }
 
     // Check the size of the bootloader
@@ -91,4 +91,15 @@ fn main() {
     assert!( size < PXE_MAX_SIZE);
 
     println!("PXE Remote.0 size: {}", size);
+
+    // Build the kernel
+    let build_kernel = Command::new("cargo")
+        .current_dir("../kernel")
+        .args(["build", "--target", "x86_64-pc-windows-msvc", "--release"])
+        .status()
+        .expect("Failed to build kernel!");
+    // If the build status was not successful stop the building
+    if !build_kernel.success() {
+        std::process::exit(1);
+    }
 }

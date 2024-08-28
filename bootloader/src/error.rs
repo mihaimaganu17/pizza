@@ -1,5 +1,6 @@
 use core::ops::Range;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum PxeError {
     InstallCheck,

@@ -18,7 +18,13 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    pxe::build().expect("Failed to call PXE Api");
+    let kernel = pxe::download(b"test_file").expect("Failed to call PXE Api");
+
+    let checksum = kernel.chunks(8).fold(0, |acc, quad| {
+        acc + u64::from_le_bytes(quad.try_into().unwrap())
+    });
+
+    println!("Checksum {:x?}", checksum);
 
     x86::halt();
 }

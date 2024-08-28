@@ -1,0 +1,10 @@
+[target.x86_64-pc-windows-msvc]
+linker = "lld-link"
+rustflags = ["-C", "relocation-model=static", "-C", "linker=lld-link", "-C",
+"link-args=/nodefaultlib /subsystem:native /entry:entry /base:0xb00b00000000 /filealign:0x1000 /fixed /nodefaultlib /align:1024"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

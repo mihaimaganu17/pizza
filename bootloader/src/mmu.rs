@@ -6,7 +6,6 @@ use core::{
     ops::RangeInclusive,
 };
 use crate::asm_ffi::{RegSelState, real_mode_int};
-use crate::println;
 
 // Stores a `RangeSet` containing all the free memory reported by the e820
 static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
@@ -25,7 +24,6 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         let ptr = phys_mem_lock.as_mut()
             .and_then(|mmu| mmu.allocate(layout.size() as u64, layout.align() as u64))
             .unwrap_or(0) as *mut u8;
-        println!("ptr {:#?}", ptr);
         ptr
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
@@ -143,7 +141,7 @@ pub fn init() -> Option<()> {
     // Acquire a lock for the `RangeSet`
     let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
     // If we previously allocated, panic
-    assert!(phys_mem_lock.is_none(), "Physical memory has already been allocated");
+    assert!(phys_mem_lock.is_none(), "Physical memory already allocated");
     // Insert the set
     *phys_mem_lock = Some(Mmu::new(set));
 

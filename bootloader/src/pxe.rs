@@ -5,7 +5,6 @@ mod api;
 
 use crate::{
     asm_ffi::{real_mode_int, pxe_call, RegSelState, RealModeAddr},
-    println,
     error::PxeError,
 };
 use sync::LockCell;
@@ -388,8 +387,8 @@ pub fn install_check() -> Option<RealModeAddr> {
     }
 }
 
-/// Guarder call(in multithreaded contexts) to PXE installation check and TFTP new file downloads.
-pub fn build() -> Result<(), PxeError> {
+/// Guarded call(in multithreaded contexts) to download a new `file_name` using the PXE API.
+pub fn download(file_name: &[u8]) -> Result<Vec<u8>, PxeError> {
     // Make sure this is multithread safe. The lock gets dropped at the end of this function
     let _pxe_lock = PXE_LOCK.lock();
 
@@ -408,17 +407,14 @@ pub fn build() -> Result<(), PxeError> {
 
     let (_cached_info, bootp_packet)= pxe.get_cached_info()?;
 
-    let file_name = b"test_file2";
-
     // Get the file size of the desired file
     let file_size = pxe.tftp_get_file_size(&bootp_packet.next_server_ip, file_name)?;
     // Open a TFTP connection and negotiate for a packet size
     let _negotiated_packet_size = pxe.tftp_open(&bootp_packet.next_server_ip, file_name, 512)?;
     // Read the file
     let downloaded = pxe.tftp_read(file_size)?;
-    println!("We downloaded {} bytes", downloaded.len());
     // Close the TFTP connection
     let _ = pxe.tftp_close()?;
 
-    Ok(())
+    Ok(downloaded)
 }
