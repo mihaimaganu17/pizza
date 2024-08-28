@@ -11,4 +11,17 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "serial",
 ]
+
+[[package]]
+name = "serial"
+version = "0.1.0"
+dependencies = [
+ "cpu",
+ "sync",
+]
+
+[[package]]
+name = "sync"
+version = "0.1.0"
