@@ -8,7 +8,9 @@ use serial::println;
 use core::panic::PanicInfo;
 
 #[no_mangle]
-extern "C" fn entry() {}
+extern "C" fn entry() {
+    x86::halt();
+}
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {

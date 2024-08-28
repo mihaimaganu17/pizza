@@ -102,4 +102,9 @@ fn main() {
     if !build_kernel.success() {
         std::process::exit(1);
     }
+    // Copy the kernel to the build directory
+    std::fs::copy(
+        "../kernel/target/x86_64-pc-windows-msvc/release/kernel.exe",
+        "../bootloader/build/pizza.kernel",
+    ).unwrap();
 }
