@@ -10,6 +10,7 @@ mod error;
 use core::panic::PanicInfo;
 use cpu::x86;
 use serial::println;
+use parse_pe::Pe;
 
 extern crate alloc;
 
@@ -18,13 +19,13 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     mmu::init();
 
-    let kernel = pxe::download(b"test_file").expect("Failed to call PXE Api");
+    let kernel = pxe::download(b"pizza.kernel").expect("Failed to download kernel");
+    let kernel = Pe::parse(&kernel).expect("Failed to parse kernel PE");
 
-    let checksum = kernel.chunks(8).fold(0, |acc, quad| {
-        acc + u64::from_le_bytes(quad.try_into().unwrap())
-    });
-
-    println!("Checksum {:x?}", checksum);
+    kernel.access_sections(|base, size, _bytes| {
+        println!("Base {:x}, size {:x}", base, size);
+        Some(())
+    }).expect("Failed to acess sections");
 
     x86::halt();
 }

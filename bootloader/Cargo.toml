@@ -8,3 +8,4 @@ cpu = { path = "../cpu", version = "0.1.0"}
 serial = { path = "../serial", version = "0.1.0"}
 sync = { path = "../sync", version = "0.1.0"}
 ops = { path = "../ops", version = "0.1.0" }
+parse-pe = { path = "../parse-pe", version = "0.1.0" }

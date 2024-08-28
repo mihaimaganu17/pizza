@@ -8,7 +8,7 @@ use std::path::Path;
 // Actually this is a recommended size and not the maximum possible value
 const PXE_MAX_SIZE: u64 = 32 * 1024;
 
-const BOOTLOADER_BASE: usize = 0x7e00;
+const BOOTLOADER_BASE: u64 = 0x7e00;
 
 fn main() {
     // Call nasm to build the bootloader to be executed by the BIOS

@@ -88,7 +88,7 @@ impl<'data> Pe<'data> {
         )
     }
 
-    pub fn access_sections<F: FnMut(usize, usize, &[u8]) -> Option<()>>(&self, mut f: F) -> Option<()> {
+    pub fn access_sections<F: FnMut(u64, u32, &[u8]) -> Option<()>>(&self, mut f: F) -> Option<()> {
         for section in self.section_headers() {
             let section_start = usize::try_from(section.pointer_to_raw_data()).ok()?;
             // Get the smallest size representation of the section in order to reduce memory
@@ -99,10 +99,9 @@ impl<'data> Pe<'data> {
             let bytes = self.bytes.get(section_start..section_end)?;
 
             // Compute the absolute Virtual Address of this section
-            let section_base = usize::try_from(self.opt_header.image_base()
-                .saturating_add(u64::from(section.virtual_address())))
-                .ok()?;
-            let section_size = usize::try_from(section_size).ok()?;
+            let section_base = self.opt_header.image_base()
+                .saturating_add(u64::from(section.virtual_address()));
+            let section_size = section_size;
 
             f(section_base, section_size, bytes)?;
         }
@@ -111,11 +110,11 @@ impl<'data> Pe<'data> {
     }
 
     /// Computes and returns the address bounds of the image: Image start and image end
-    pub fn image_bounds(&self) -> Option<(usize, usize)> {
+    pub fn image_bounds(&self) -> Option<(u64, u64)> {
         let mut image_start = None;
         let mut image_end = None;
         self.access_sections(|base, size, _bytes| {
-            let end = base.saturating_add(size);
+            let end = base.saturating_add(u64::from(size));
 
             if image_start.is_none() {
                 image_start = Some(base);
