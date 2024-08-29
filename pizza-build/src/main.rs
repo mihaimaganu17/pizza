@@ -107,4 +107,7 @@ fn main() {
         "../kernel/target/x86_64-pc-windows-msvc/release/kernel.exe",
         "../bootloader/build/pizza.kernel",
     ).unwrap();
+
+    let layout = core::alloc::Layout::from_size_align(10, 16).unwrap();
+    println!("{:?}", layout.size());
 }
