@@ -17,6 +17,19 @@ pub fn in_u8(address: u16) -> u8 {
     value
 }
 
+/// Invalidate TBL entries for page containing m.
+#[inline]
+#[cfg(target_arch = "x86_64")]
+pub unsafe fn invlpg(address: u64) {
+    asm!("invlpg rax", in("rax") address);
+}
+
+#[cfg(target_arch = "x86")]
+pub unsafe fn invlpg(address: u64) {
+    let address = address as u32;
+    asm!("invlpg eax", in("eax") address);
+}
+
 /// Disable interrupts and halt forever
 pub fn halt() -> ! {
     loop {

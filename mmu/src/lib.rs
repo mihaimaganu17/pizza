@@ -1,15 +1,20 @@
+#![no_std]
 use core::alloc::Layout;
+use cpu::x86;
 
 /// Implementors of this trait are capable of taking advantange of Intels x86 4-Level Paging
 /// linear address translation capability
 pub trait AddressTranslate {
     /// Allocates memory with the specified layout and returns a pointer to that memory.
-    fn alloc(&mut self, layout: Layout) -> *mut u8;
+    unsafe fn alloc(&mut self, layout: Layout) -> *mut u8;
+    /// Translates a physical memory address into a virtual memory one, checking whether or not
+    /// the block is available for `size` bytes
+    unsafe fn translate(&self, physical_address: PhysicalAddress, size: usize) -> Option<*mut u8>;
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct PhysicalAddress(u64);
+pub struct PhysicalAddress(pub u64);
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct VirtualAddress(u64);
@@ -67,7 +72,7 @@ impl PML4 {
         &self,
         virtual_address: VirtualAddress,
         // Raw value to map at the address
-        raw: u64,
+        maybe_raw: Option<u64>,
         page_size: PageSize,
         allocator: &mut A,
     ) -> Result<(), MapError> {
@@ -130,14 +135,14 @@ impl PML4 {
                 unsafe {
                     // If the we are not at a page frame and the page is not present
                     if table_ptr.is_null() || (*table_ptr) & PAGE_PRESENT == 0 {
-                        let mut temp_table_ptr = allocator
+                        let temp_table_ptr = allocator
                             .alloc(Layout::from_size_align(PAGE_TABLE_SIZE, PAGE_TABLE_SIZE)?);
                         // Now that we allocated it, we want to zero it out.
                         core::slice::from_raw_parts_mut(temp_table_ptr, PAGE_TABLE_SIZE)
                             .into_iter()
-                            .map(|entry| *entry = 0);
+                            .for_each(|entry| *entry = 0);
                         // We asign the new address to our pointer
-                        *table_ptr = temp_table_ptr as *mut u64 as u64;
+                        *table_ptr = temp_table_ptr as u64;
                         // Mark the new table as PRESENT, WRITE and USER.
                         *table_ptr = *table_ptr | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
                         // Update the local pointer to the next table
@@ -146,6 +151,10 @@ impl PML4 {
                 }
                 // Now we go to the entry in the table, which is the follow-up table or the page
                 // frame
+                // First iteration = PML4E
+                // Second iteration = PDPTE
+                // Third Iteration = PDE
+                // Fouth Iteration = PTE
                 next_table = next_table | (page_table_ptr << 3);
             } else {
                 // The biggest page frame we can have is 1Gb, which needs 2 indirect pointers to be
@@ -159,43 +168,36 @@ impl PML4 {
         }
 
         // At this point, we need to map the actual page frame
-        let (page, offset_shift) = match page_size {
-            PageSize::Page4Kb => {
-                let page = next_table & (((1 << 40) - 1) << 12);
-                let offset_shift = 12;
-                (page, offset_shift)
-            }
-            PageSize::Page2Mb => {
-                let page = next_table & (((1 << 31) - 1) << 21);
-                let offset_shift = 21;
-                (page, offset_shift)
-            }
-            PageSize::Page1Gb => {
-                let page = next_table & (((1 << 22) - 1) << 30);
-                let offset_shift = 30;
-                (page, offset_shift)
-            }
+        let mut page = match page_size {
+            PageSize::Page4Kb => next_table & (((1 << 40) - 1) << 12),
+            PageSize::Page2Mb => next_table & (((1 << 31) - 1) << 21),
+            PageSize::Page1Gb => next_table & (((1 << 22) - 1) << 30),
         };
 
         unsafe {
             // Check if the page frame exists.
-            if *(page as *mut u64) & PAGE_PRESENT == 0 {
+            if page & PAGE_PRESENT == 0 {
                 let size = page_size.size() as usize;
                 // If not, we allocate it
-                println!("{:?}", page_size);
-                let mut temp_table_ptr = allocator
+                let temp_table_ptr = allocator
                     .alloc(Layout::from_size_align(size, size)?);
                 // And we assign the entry
-                *(page as *mut u64) = temp_table_ptr as u64;
+                page = temp_table_ptr as u64;
                 // Mark the new table as PRESENT, WRITE and USER.
-                *(page as *mut u64) = *(page as *mut u64) | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+                page = page | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
             }
 
-            println!("page ptr {:x?}, page contents {:x?}", page as *mut u64, *(page as *mut u64));
             // At this point, the frame exist, so we just need to assign it the value
             let page_addr = Self::page_frame_addr(virtual_address, page, page_size);
-            println!("page addr {:x?} {:x?}", page_addr, virtual_address.0);
-            *(page_addr as *mut u64) = raw;
+
+            if let Some(raw) = maybe_raw {
+                if (page & PAGE_PRESENT) != 0 &&
+                    core::mem::size_of::<u64>() != core::mem::size_of::<usize>() {
+                    // We caused an update, we need to invalidate the TLB
+                    x86::invlpg(page_addr);
+                }
+                *(page_addr as *mut u64) = raw;
+            }
         }
 
         Ok(())
@@ -263,7 +265,7 @@ mod tests {
         let virt_addr = VirtualAddress(0x0123_8000);
         let pml4 = unsafe { PML4::from_addr(PhysicalAddress(cr3)) };
         let mut allocator = Allocator;
-        let raw: u64 = 0x1337_b00b;
+        let raw: Option<u64> = Some(0x1337_b00b);
 
         let mapped_page = pml4.map(virt_addr, raw, PageSize::Page4Kb, &mut allocator);
 
@@ -277,7 +279,7 @@ mod tests {
         let virt_addr = VirtualAddress(0x0123_8100);
         let pml4 = unsafe { PML4::from_addr(PhysicalAddress(cr3)) };
         let mut allocator = Allocator;
-        let raw: u64 = 0x1337_b00b;
+        let raw: Option<u64> = Some(0x1337_b00b);
 
         let mapped_page = pml4.map(virt_addr, raw, PageSize::Page4Kb, &mut allocator);
 
@@ -291,7 +293,7 @@ mod tests {
         let cr3 = physical_memory.as_ptr() as u64;
         let pml4 = unsafe { PML4::from_addr(PhysicalAddress(cr3)) };
         let mut allocator = Allocator;
-        let raw: u64 = 0x1337_b00b;
+        let raw: Option<u64> = Some(0x1337_b00b);
 
         let mapped_page = pml4.map(virt_addr, raw, PageSize::Page2Mb, &mut allocator);
 
@@ -305,35 +307,35 @@ mod tests {
         let cr3 = physical_memory.as_ptr() as u64;
         let pml4 = unsafe { PML4::from_addr(PhysicalAddress(cr3)) };
         let mut allocator = Allocator;
-        let raw: u64 = 0x1337_b00b;
+        let raw: Option<u64> = Some(0x1337_b00b);
 
         let mapped_page = pml4.map(virt_addr, raw, PageSize::Page2Mb, &mut allocator);
 
         assert!(mapped_page.is_err());
     }
 
-    //#[test]
+    #[test]
     fn test_1gb_page_ok() {
-        let virt_addr = VirtualAddress(0x1234_1234_1234_1234);
+        let virt_addr = VirtualAddress(0x1234_1234_8000_0000);
         let physical_memory = alloc::vec![0u8; 4096];
         let cr3 = physical_memory.as_ptr() as u64;
         let pml4 = unsafe { PML4::from_addr(PhysicalAddress(cr3)) };
         let mut allocator = Allocator;
-        let raw: u64 = 0x1337_b00b;
+        let raw: Option<u64> = Some(0x1337_b00b);
 
-        let mapped_page = pml4.map(virt_addr, raw, PageSize::Page1Gb, &mut allocator);
+        let mapped_page = pml4.map(virt_addr, raw, PageSize::Page1Gb, &mut allocator).unwrap();
 
         assert!(mapped_page.is_ok());
     }
 
-    //#[test]
+    #[test]
     fn test_1gb_page_err() {
         let virt_addr = VirtualAddress(0x0123 << 29);
         let physical_memory = alloc::vec![0u8; 4096];
         let cr3 = physical_memory.as_ptr() as u64;
         let pml4 = unsafe { PML4::from_addr(PhysicalAddress(cr3)) };
         let mut allocator = Allocator;
-        let raw: u64 = 0x1337_b00b;
+        let raw: Option<u64> = Some(0x1337_b00b);
 
         let mapped_page = pml4.map(virt_addr, raw, PageSize::Page1Gb, &mut allocator);
 

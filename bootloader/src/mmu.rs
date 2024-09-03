@@ -6,6 +6,28 @@ use core::{
     ops::RangeInclusive,
 };
 use crate::asm_ffi::{RegSelState, real_mode_int};
+use mmu::{AddressTranslate, PhysicalAddress, VirtualAddress, PML4};
+
+impl AddressTranslate for Mmu {
+    unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
+        self
+            .allocate(layout.size() as u64, layout.align() as u64)
+            .expect("Failed to allocate memory")
+            as *mut u8
+    }
+    unsafe fn translate(&self, physical_address: PhysicalAddress, size: usize) -> Option<*mut u8> {
+        // We do not alloc 0 sized allocations
+        if size == 0 {
+            return None;
+        }
+        // Convert the physical address into the size of the bootloader target
+        let phys_addr = usize::try_from(physical_address.0).ok()?;
+        // Check if the allocation `size` fits into our allowed space
+        let _ = phys_addr.checked_add(size)?;
+        // Return the physical address pointer
+        Some(phys_addr as *mut u8)
+    }
+}
 
 // Stores a `RangeSet` containing all the free memory reported by the e820
 static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
