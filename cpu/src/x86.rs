@@ -21,13 +21,14 @@ pub fn in_u8(address: u16) -> u8 {
 #[inline]
 #[cfg(target_arch = "x86_64")]
 pub unsafe fn invlpg(address: u64) {
-    asm!("invlpg rax", in("rax") address);
+    asm!("invlpg {0}", in(reg) address);
 }
 
+#[inline]
 #[cfg(target_arch = "x86")]
 pub unsafe fn invlpg(address: u64) {
-    let address = address as u32;
-    asm!("invlpg eax", in("eax") address);
+    let addr: usize = address as usize;
+    asm!("invlpg [{0}]", in(reg) addr);
 }
 
 /// Disable interrupts and halt forever

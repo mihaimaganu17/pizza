@@ -10,6 +10,15 @@ pub trait AddressTranslate {
     /// Translates a physical memory address into a virtual memory one, checking whether or not
     /// the block is available for `size` bytes
     unsafe fn translate(&self, physical_address: PhysicalAddress, size: usize) -> Option<*mut u8>;
+    /// Allocates memory and fills it with 0
+    unsafe fn alloc_zeroed(&mut self, layout: Layout) -> *mut u8 {
+        let ptr = self.alloc(layout);
+        // Now that we allocated it, we want to zero it out.
+        core::slice::from_raw_parts_mut(ptr, layout.size())
+            .into_iter()
+            .for_each(|entry| *entry = 0);
+        ptr
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -17,7 +26,7 @@ pub trait AddressTranslate {
 pub struct PhysicalAddress(pub u64);
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct VirtualAddress(u64);
+pub struct VirtualAddress(pub u64);
 
 // Each table entry is referenced by 9 bits, at different locations in the linear address, which
 // means each table contains 512 entries. Each entry, is a u64 -> 8 bytes, meaning that an entire
@@ -29,16 +38,21 @@ const PAGE_PRESENT: u64 = 1 << 0;
 const PAGE_WRITE: u64 = 1 << 1;
 // Marks that the page is USER accessible (other option is supervisor)
 const PAGE_USER: u64 = 1 << 2;
+// Execute disable. If 1 and the MSR IA32_EFER.NXE bit is 1, instruction fecthes are not allowed
+// from the region controlled by this page
+const PAGE_NXE: u64 = 1 << 63;
 
 // A x86_64 page table
 pub enum PageTable {
     // A 4-level paging page table
-    PML4(PML4),
+    PML4,
 }
 
-pub struct PML4 {
+pub struct PML4<'mem, A: AddressTranslate> {
     // The value in cr3 that points to the 4 level page table.
     cr3_root: PhysicalAddress,
+    // Keep a reference to the phyiscal memory translator, such that we know we have the lock
+    mem: &'mem mut A,
 }
 
 #[derive(Debug)]
@@ -59,22 +73,28 @@ impl PageSize {
 }
 
 
-impl PML4 {
+impl<'mem, A: AddressTranslate> PML4<'mem, A> {
     /// Instantiate a new PML4 table from a given address. This address must:
     /// - already point to an allocated 4Kb Page Table.
     /// - have the page table either 0 or initilized
-    pub unsafe fn from_addr(addr: PhysicalAddress) -> Self {
-        PML4 { cr3_root: addr }
+    pub unsafe fn from_addr(mem: &'mem mut A, addr: PhysicalAddress) -> Option<Self> {
+        Some(PML4 { cr3_root: addr, mem })
+    }
+
+    /// Instantiate and allocate a new PML4 table from a given address.
+    pub unsafe fn new(mem: &'mem mut A) -> Option<Self> {
+        let pml4_table = mem
+            .alloc_zeroed(Layout::from_size_align(PAGE_TABLE_SIZE, PAGE_TABLE_SIZE).ok()?);
+        Self::from_addr(mem, PhysicalAddress(pml4_table as *mut u64 as u64))
     }
 
     // Map a virtual address using the 4-level paging translation
-    pub fn map<A: AddressTranslate>(
-        &self,
+    pub fn map(
+        &mut self,
         virtual_address: VirtualAddress,
         // Raw value to map at the address
         maybe_raw: Option<u64>,
         page_size: PageSize,
-        allocator: &mut A,
     ) -> Result<(), MapError> {
         // Check that the address is aligned according to the size
         let align_mask = page_size.size() - 1;
@@ -135,7 +155,7 @@ impl PML4 {
                 unsafe {
                     // If the we are not at a page frame and the page is not present
                     if table_ptr.is_null() || (*table_ptr) & PAGE_PRESENT == 0 {
-                        let temp_table_ptr = allocator
+                        let temp_table_ptr = self.mem
                             .alloc(Layout::from_size_align(PAGE_TABLE_SIZE, PAGE_TABLE_SIZE)?);
                         // Now that we allocated it, we want to zero it out.
                         core::slice::from_raw_parts_mut(temp_table_ptr, PAGE_TABLE_SIZE)
@@ -179,7 +199,7 @@ impl PML4 {
             if page & PAGE_PRESENT == 0 {
                 let size = page_size.size() as usize;
                 // If not, we allocate it
-                let temp_table_ptr = allocator
+                let temp_table_ptr = self.mem
                     .alloc(Layout::from_size_align(size, size)?);
                 // And we assign the entry
                 page = temp_table_ptr as u64;

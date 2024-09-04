@@ -6,7 +6,7 @@ use core::{
     ops::RangeInclusive,
 };
 use crate::asm_ffi::{RegSelState, real_mode_int};
-use mmu::{AddressTranslate, PhysicalAddress, VirtualAddress, PML4};
+use mmu::{AddressTranslate, PhysicalAddress};
 
 impl AddressTranslate for Mmu {
     unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
@@ -30,7 +30,7 @@ impl AddressTranslate for Mmu {
 }
 
 // Stores a `RangeSet` containing all the free memory reported by the e820
-static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
+pub static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
 
 // Structure used by the memory manager to allocate memory. This implements `GlobalAlloc` crate in
 // order to be used by Rust.
