@@ -333,6 +333,77 @@ ret_to_rust:
     popad
     ret
 
+[bits 32]
+_enter_ia32e:
+    ; Get the parameters passed by the function
+    mov esi, [esp + 0x12] ; Pointer to the PML4 page table
+    ; Disable paging (Set PG to 0)
+    mov eax, cr0
+    or eax, 0x7fffffff
+    mov cr0, eax
+    ; Enable physical address extension. This allows addresses with more than 32 bits to be
+    ; represented.
+    mov eax, cr4
+    or eax, 1 << 5
+    mov cr4, eax
+    ; Load the CR3 with the physical base address of the Level 4 page map table (PML4)
+    mov cr3, esi
+    ; Enable IA-32e mode, by setting the IA32_EFER.LME = 1, which is the 8th bit in MSR C000_0080H
+    mov ecx, 0xc0000080
+    ; Reads MSR from the adress in ECX into registers EDX:EAX
+    rdmsr
+    xor eax, eax
+    xor edx, edx
+    ; Enable IA-32e mode operation and not execute (bit 8 and 11)
+    mov eax, 0b1001 << 8
+    ; Writes the contents of registers EDX:EAX into a 64-bit MSR address specified in the ECX
+    ; register
+    wrmsr
+    ; Enable paging by setting CR0.PG = 1
+    mov eax, cr0
+    or eax, 1 << 31
+    mov cr0, eax
+
+    ; Load the 64-bit IA-32 GDT
+    lgdt [ia32e_gdt]
+
+    ; Jump to IA-32e mode (also known as long mode)
+    jmp 0x0008:ia32e_mode
+
+[bits 64]
+ia32e_mode:
+    ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
+    ; and each entry is 8 bytes (first is 0, second is code selector)
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov gs, ax
+    mov fs, ax
+
+    mov rdi, qword [rsp + 0x4] ; Entry point for the function that will execute from Rust in ia32e
+    mov rbp, qword [rsp + 0xc] ; Stack
+    ; In the MSFT x64 calling convention, stack space is allocated even for parameters passed in
+    ; registers, like the first 4 parameters passed in RCX, RDX, R8 and R9. This means that we need
+    ; to consider an additional 32 bytes (8 * 4) of space on the stack. In addition, we need to
+    ; add a fake return address that the `iretq` will return to
+    sub rbp, 40
+
+    ; Push the iret frame -> Intel Manual Vol 3a, 6.14.4
+    ; SS
+    push qword 0x10
+    ; RSP
+    push qword rsp
+    ; Push flags
+    pushfq
+    ; Push code selector
+    push qword 0x08
+    ; push the instruction pointer
+    push qword rdi
+    ; Execute the interrupt
+    iretq
+
+
     section .data
 align 8
 real_mode_gdt:
@@ -362,3 +433,18 @@ pm_gdtr:
     dw (pm_gdtr - pm_gdt) - 1
     ; 4-bytes for the offset in 32-bit mode
     dd pm_gdt
+
+ia32e_gdt:
+    ; First entry is always Null
+    dq 0
+    ; In 64-bit mode, Base and Limit values are ignored, thus we set them to 0
+    db 0x00,0x00,0x00,0x00,0x00,0x9a,0x20,0x00 ; Long-mode code flag, limit is 0
+    db 0x00,0x00,0x00,0x00,0x00,0x92,0x00,0x00
+
+; GDTR descriptor loaded using the LGDT assembly, which contains a size and a pointer to the GDT
+ia32e_gdtr:
+    ; Size of the GDT. In the case GDT is maxed out (2*16) bytes, we cannot fit that value in
+    ; 16-bits, so we have to substract 1
+    dw (ia32e_gdtr - ia32e_gdt) - 1
+    ; 4-bytes for the offset in 32-bit mode
+    dd ia32e_gdt
