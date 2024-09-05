@@ -125,7 +125,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         rwx: RWX,
     ) -> Result<(), MapError> {
         // Check that the address is aligned according to the size
-        let align_mask = page_size.size() - 1;
+        let align_mask = 0; //page_size.size() - 1;
 
         // Make sure the virtual address is aligned to the desired size
         if virtual_address.0 & align_mask != 0 {
