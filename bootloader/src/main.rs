@@ -38,7 +38,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
             // Create a new PML4 table
             let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
 
-            pml4.map_quad(VirtualAddress(0x1337_0000_0000), Some(0), PageSize::Page4Kb,
+            pml4.map_byte(VirtualAddress(0x1337_0000_0000), Some(0), PageSize::Page4Kb,
                 RWX { read: true, write: true, execute: true })
                 .expect("Failed to map memory");
         }

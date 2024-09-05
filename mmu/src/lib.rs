@@ -49,7 +49,7 @@ pub enum PageTable {
 }
 
 // Read write execute flags
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RWX {
     pub read: bool,
     pub write: bool,
@@ -63,7 +63,7 @@ pub struct PML4<'mem, A: AddressTranslate> {
     mem: &'mem mut A,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum PageSize {
     Page4Kb,
     Page2Mb,
@@ -96,14 +96,31 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         Self::from_addr(mem, PhysicalAddress(pml4_table as *mut u64 as u64))
     }
 
-    // Map a virtual address using the 4-level paging translation, with page frames of size
-    // `page_size` with the desired `rwx` read, write, execute permissions and fill it with the
-    // potential value stored in `maybe_raw`
-    pub fn map_quad(
+    pub fn map_slice(
         &mut self,
         virtual_address: VirtualAddress,
         // Raw value to map at the address
-        maybe_raw: Option<u64>,
+        slice: &[u8],
+        page_size: PageSize,
+        rwx: RWX,
+    ) -> Result<(), MapError> {
+        for (idx, byte) in slice.iter().enumerate() {
+            let virtual_address = VirtualAddress(
+                virtual_address.0.checked_add(idx as u64).ok_or(MapError::OverflowingIdx(usize::MAX))?
+            );
+            self.map_byte(virtual_address, Some(*byte), page_size, rwx)?;
+        }
+        Ok(())
+    }
+
+    // Map a virtual address using the 4-level paging translation, with page frames of size
+    // `page_size` with the desired `rwx` read, write, execute permissions and fill it with the
+    // potential value stored in `maybe_raw`
+    pub fn map_byte(
+        &mut self,
+        virtual_address: VirtualAddress,
+        // Raw value to map at the address
+        maybe_raw: Option<u8>,
         page_size: PageSize,
         rwx: RWX,
     ) -> Result<(), MapError> {
@@ -232,7 +249,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
                     // We caused an update, we need to invalidate the TLB
                     x86::invlpg(page_frame_ptr as u64);
                 }
-                *(page_frame_ptr as *mut u64) = raw;
+                *page_frame_ptr = raw;
             }
         }
 
@@ -254,6 +271,7 @@ pub enum MapError {
     AddressUnaligned((VirtualAddress, u64)),
     PagePointerZero(usize),
     LayoutError(core::alloc::LayoutError),
+    OverflowingIdx(usize),
 }
 
 impl From<core::alloc::LayoutError> for MapError {
