@@ -1,6 +1,7 @@
 #![no_std]
 use core::alloc::Layout;
 use cpu::x86;
+use serial::println;
 
 /// Implementors of this trait are capable of taking advantange of Intels x86 4-Level Paging
 /// linear address translation capability
@@ -96,6 +97,21 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         Self::from_addr(mem, PhysicalAddress(pml4_table as *mut u64 as u64))
     }
 
+    pub fn cr3(&self) -> PhysicalAddress {
+        self.cr3_root
+    }
+
+    pub unsafe fn map_zero(
+        &mut self,
+        virtual_address: VirtualAddress,
+        layout: Layout,
+        page_size: PageSize,
+        rwx: RWX,
+    ) -> Result<(), MapError> {
+        let region = core::slice::from_raw_parts(self.mem.alloc_zeroed(layout), layout.size());
+        self.map_slice(virtual_address, region, page_size, rwx)
+    }
+
     pub fn map_slice(
         &mut self,
         virtual_address: VirtualAddress,
@@ -131,6 +147,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         if virtual_address.0 & align_mask != 0 {
             return Err(MapError::AddressUnaligned((virtual_address, page_size.size())));
         }
+        println!("Here start {:x?}", virtual_address.0);
 
         // For each translation step, the address of the next page table or the address of the
         // page frame (the actual physical page) is computed as follows
@@ -144,7 +161,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         let page_table_ptrs = match page_size {
             PageSize::Page4Kb => {
                 [
-                    Some((virtual_address.0 >> 38) & 0x1ff),
+                    Some((virtual_address.0 >> 39) & 0x1ff),
                     Some((virtual_address.0 >> 30) & 0x1ff),
                     Some((virtual_address.0 >> 21) & 0x1ff),
                     Some((virtual_address.0 >> 12) & 0x1ff),
@@ -152,7 +169,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             }
             PageSize::Page2Mb => {
                 [
-                    Some((virtual_address.0 >> 38) & 0x1ff),
+                    Some((virtual_address.0 >> 39) & 0x1ff),
                     Some((virtual_address.0 >> 30) & 0x1ff),
                     Some((virtual_address.0 >> 21) & 0x1ff),
                     None,
@@ -160,7 +177,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             }
             PageSize::Page1Gb => {
                 [
-                    Some((virtual_address.0 >> 38) & 0x1ff),
+                    Some((virtual_address.0 >> 39) & 0x1ff),
                     Some((virtual_address.0 >> 30) & 0x1ff),
                     None,
                     None,
@@ -176,6 +193,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             if let Some(page_table_ptr) = maybe_page_table_ptr {
                 // First we go to the table
                 next_table = next_table & 0xffffffffff000;
+                println!("Level {} table {:x?}", 4-depth, next_table);
                 // Cast the address into a pointer, because this is what it essentially is
                 let mut table_ptr = next_table as *mut u64;
                 unsafe {
@@ -252,6 +270,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
                 *page_frame_ptr = raw;
             }
         }
+        println!("Here end");
 
         Ok(())
     }

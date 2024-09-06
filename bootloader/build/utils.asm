@@ -334,9 +334,13 @@ ret_to_rust:
     ret
 
 [bits 32]
+    global _enter_ia32e
 _enter_ia32e:
     ; Get the parameters passed by the function
-    mov esi, [esp + 0x12] ; Pointer to the PML4 page table
+    ; dword [esp + 0x4] ; value to be put in the cr3
+    ; quad [esp + 0x08] ; stack
+    ; quad [esp + 0x10] ; entry point
+    mov esi, dword [esp + 0x4] ; Pointer to the PML4 page table
     ; Disable paging (Set PG to 0)
     mov eax, cr0
     or eax, 0x7fffffff
@@ -381,8 +385,8 @@ ia32e_mode:
     mov gs, ax
     mov fs, ax
 
-    mov rdi, qword [rsp + 0x4] ; Entry point for the function that will execute from Rust in ia32e
-    mov rbp, qword [rsp + 0xc] ; Stack
+    mov rdi, qword [rsp + 0x10] ; Entry point for the function that will execute from Rust in ia32e
+    mov rbp, qword [rsp + 0x08] ; Stack
     ; In the MSFT x64 calling convention, stack space is allocated even for parameters passed in
     ; registers, like the first 4 parameters passed in RCX, RDX, R8 and R9. This means that we need
     ; to consider an additional 32 bytes (8 * 4) of space on the stack. In addition, we need to
@@ -393,7 +397,7 @@ ia32e_mode:
     ; SS
     push qword 0x10
     ; RSP
-    push qword rsp
+    push qword rbp
     ; Push flags
     pushfq
     ; Push code selector

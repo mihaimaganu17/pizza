@@ -23,6 +23,7 @@ name = "mmu"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "serial",
 ]
 
 [[package]]

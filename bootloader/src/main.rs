@@ -34,7 +34,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         let mut phys_mem = memory::PHYSICAL_MEMORY.lock();
         let phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
 
-        unsafe {
+        let pml4 = unsafe {
             // Create a new PML4 table
             let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
 
@@ -47,12 +47,29 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
                 ).expect("Failed to map PE");
                 Some(())
             });
+
+            // Allocate and map a stack
+            pml4.map_zero(
+                VirtualAddress(0x00_0010_0000),
+                core::alloc::Layout::from_size_align(8192, 4096).expect("Failed to create layout"),
+                PageSize::Page4Kb,
+                RWX { read: true, write: true, execute: true },
+            ).expect("Failed to map a stack");
+            pml4
+        };
+        extern {
+            fn enter_ia32e(entry_point: u64, stack: u64, cr3: u32) -> !;
+        }
+
+        unsafe {
+            println!("Entry point {:x?}", kernel.entry_point());
+
+            x86::halt();
+            enter_ia32e(kernel.entry_point(), 0x00_0010_0000 + 8192, pml4.cr3().0 as u32);
         }
     }
-
     println!("We made it!\n");
 
-    x86::halt();
 }
 
 #[panic_handler]
