@@ -7,7 +7,6 @@ pub const _PE32_MAGIC: u16 = 0x10b;
 /// PE32+
 pub const _PE32_PLUS_MAGIC: u16 = 0x20b;
 
-#[derive(Debug)]
 #[derive(ReadMe)]
 pub struct OptionalHeaderType<T: PeArch + Primitive> {
     magic: u16,
@@ -47,7 +46,6 @@ impl<T: PeArch + Primitive> OptionalHeaderType<T> {
     }
 }
 
-#[derive(Debug)]
 pub enum OptionalHeader {
     PE32(OptionalHeaderType<u32>),
     PE32Plus(OptionalHeaderType<u64>),
@@ -77,7 +75,6 @@ impl OptionalHeader {
     }
 }
 
-#[derive(Debug)]
 #[derive(ReadMe)]
 pub struct DataDirectory {
     rva: u32,

@@ -1,7 +1,6 @@
 #![no_std]
 use core::alloc::Layout;
 use cpu::x86;
-use serial::println;
 
 /// Implementors of this trait are capable of taking advantange of Intels x86 4-Level Paging
 /// linear address translation capability
@@ -147,7 +146,6 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         if virtual_address.0 & align_mask != 0 {
             return Err(MapError::AddressUnaligned((virtual_address, page_size.size())));
         }
-        println!("Here start {:x?}", virtual_address.0);
 
         // For each translation step, the address of the next page table or the address of the
         // page frame (the actual physical page) is computed as follows
@@ -193,20 +191,23 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             if let Some(page_table_ptr) = maybe_page_table_ptr {
                 // First we go to the table
                 next_table = next_table & 0xffffffffff000;
-                println!("Level {} table {:x?}", 4-depth, next_table);
                 // Cast the address into a pointer, because this is what it essentially is
                 let mut table_ptr = next_table as *mut u64;
                 unsafe {
                     // If the table does not exist yet, as in our pointer references a zero entry,
                     // we allocate it
-                    if table_ptr.is_null() {
+                    if *table_ptr == 0 {
                         // This should not use the `alloc` crate allocation methods since we want
                         // to keep the pointer valid beyond this scope.
                         let temp_table_ptr = self.mem.alloc_zeroed(
                             Layout::from_size_align(PAGE_TABLE_SIZE, PAGE_TABLE_SIZE)?
                         );
                         // We asign the new address to our pointer
-                        table_ptr = temp_table_ptr as *mut u64;
+                        *table_ptr = temp_table_ptr as *mut u64 as u64;
+
+                        if depth == 0 {
+                            self.cr3_root = PhysicalAddress(*table_ptr);
+                        }
                     }
                     // Now we go to the entry in the table, which is the follow-up table or the page
                     // frame
@@ -220,7 +221,7 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
                     //   element type.
                     // - It is safe to cast to a usize, even if we are in 32-bit protected mode,
                     //   since the offset in a page table is represented on 9 bits.
-                    table_ptr = table_ptr.add(*page_table_ptr as usize);
+                    *table_ptr = (*table_ptr).saturating_add(*page_table_ptr);
                     // Mark the new entry as PRESENT, USER and based on the given flags.
                     *table_ptr = *table_ptr | PAGE_PRESENT
                         | if rwx.write { PAGE_WRITE } else { 0 }
@@ -246,31 +247,37 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             PageSize::Page4Kb => next_table & (((1 << 40) - 1) << 12),
             PageSize::Page2Mb => next_table & (((1 << 31) - 1) << 21),
             PageSize::Page1Gb => next_table & (((1 << 22) - 1) << 30),
-        } as *mut u8;
+        } as *mut u64;
+        serial::println!("page ptr0 {:#x?}", page_frame_ptr);
 
         unsafe {
             // Check if the page frame exists.
-            if page_frame_ptr.is_null() {
+            if *page_frame_ptr == 0 {
                 let size = page_size.size() as usize;
+                let layout = Layout::from_size_align(size, size)?;
                 // If not, we allocate the page
-                page_frame_ptr = self.mem
-                    .alloc_zeroed(Layout::from_size_align(size, size)?);
+                *page_frame_ptr = self.mem.alloc_zeroed(layout) as u64;
+                serial::println!("page ptr alloc {:#x?}", *page_frame_ptr);
             }
-
+            serial::println!("page ptr1 {:#x?}", page_frame_ptr);
             // At this point, the frame exist, so we just need to assign it the value
             let offset = Self::page_frame_offset(virtual_address, page_size);
-            page_frame_ptr = page_frame_ptr.add(offset as usize);
 
             if let Some(raw) = maybe_raw {
-                if (next_table & PAGE_PRESENT) != 0 &&
-                    core::mem::size_of::<u64>() != core::mem::size_of::<usize>() {
+                if (*page_frame_ptr & PAGE_PRESENT) != 0 {
                     // We caused an update, we need to invalidate the TLB
-                    x86::invlpg(page_frame_ptr as u64);
+                    //x86::invlpg(*page_frame_ptr);
                 }
-                *page_frame_ptr = raw;
+                let temp_frame_ptr = (*page_frame_ptr).saturating_add(offset);
+                *(temp_frame_ptr as *mut u8) = raw;
             }
+            *page_frame_ptr = *page_frame_ptr | PAGE_PRESENT
+                | if rwx.write { PAGE_WRITE } else { 0 }
+                // The execute bit is for disable execution (inverse)
+                | if !rwx.execute { PAGE_NXE } else { 0 }
+                | PAGE_USER;
+
         }
-        println!("Here end");
 
         Ok(())
     }

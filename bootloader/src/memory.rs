@@ -90,7 +90,7 @@ impl Mmu {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 #[repr(C)]
 pub struct AddressRange {
     // Base address for this range
@@ -163,7 +163,7 @@ pub fn init() -> Option<()> {
     // Acquire a lock for the `RangeSet`
     let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
     // If we previously allocated, panic
-    assert!(phys_mem_lock.is_none(), "Physical memory already allocated");
+    assert!(phys_mem_lock.is_none(), "Already allocated");
     // Insert the set
     *phys_mem_lock = Some(Mmu::new(set));
 

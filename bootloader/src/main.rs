@@ -20,13 +20,13 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     serial::init();
     memory::init();
 
-    let kernel = pxe::download(b"pizza.kernel").expect("Failed to download kernel");
-    let kernel = Pe::parse(&kernel).expect("Failed to parse kernel PE");
+    let kernel = pxe::download(b"pizza.kernel").expect("Kernel download");
+    let kernel = Pe::parse(&kernel).expect("Kernel parsing");
 
     kernel.access_sections(|base, size, _bytes| {
         println!("Base {:x}, size {:x}", base, size);
         Some(())
-    }).expect("Failed to acess sections");
+    }).expect("Section access");
 
     // Create a page table and jump in IA-32e mode
     {
@@ -50,7 +50,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
 
             // Allocate and map a stack
             pml4.map_zero(
-                VirtualAddress(0x00_0010_0000),
+                VirtualAddress(0xb00_0010_0000),
                 core::alloc::Layout::from_size_align(8192, 4096).expect("Failed to create layout"),
                 PageSize::Page4Kb,
                 RWX { read: true, write: true, execute: true },
@@ -64,8 +64,9 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         unsafe {
             println!("Entry point {:x?}", kernel.entry_point());
 
-            //x86::halt();
-            enter_ia32e(kernel.entry_point(), 0x00_0010_0000 + 8192, pml4.cr3().0 as u32);
+            println!("pml {:#x?}", pml4.cr3().0);
+            x86::halt();
+            enter_ia32e(kernel.entry_point(), 0xb00_0010_0000 + 8192, pml4.cr3().0 as u32);
         }
     }
     println!("We made it!\n");

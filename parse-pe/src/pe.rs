@@ -13,7 +13,6 @@ pub const PE_MAGIC: &[u8; 4] = b"PE\0\0";
 pub const OPT_PE32_MAGIC: u16 = 0x10b;
 pub const OPT_PE32_PLUS_MAGIC: u16 = 0x20b;
 
-#[derive(Debug)]
 pub struct Pe<'data> {
     bytes: &'data [u8],
     coff_header: CoffHeader,
