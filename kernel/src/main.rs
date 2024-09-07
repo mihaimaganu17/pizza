@@ -9,6 +9,10 @@ use core::panic::PanicInfo;
 
 #[no_mangle]
 extern "C" fn entry() {
+    let mut screen = unsafe {
+        core::slice::from_raw_parts_mut(0xb8000 as *mut u16, 80 * 25)
+    };
+    screen.iter_mut().for_each(|x| *x = 0x0f75);
     x86::halt();
 }
 

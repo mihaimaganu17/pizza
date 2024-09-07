@@ -64,7 +64,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         unsafe {
             println!("Entry point {:x?}", kernel.entry_point());
 
-            x86::halt();
+            //x86::halt();
             enter_ia32e(kernel.entry_point(), 0x00_0010_0000 + 8192, pml4.cr3().0 as u32);
         }
     }
