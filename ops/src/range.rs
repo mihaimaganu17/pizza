@@ -3,7 +3,6 @@ use core::ops::RangeInclusive;
 
 /// Defines a set of exclusive `RangeInclusive`s, [start..=end]. The set is limited to 32 elements
 /// because we do not have an allocator.
-#[derive(Debug)]
 pub struct RangeSet {
     // Elements in this set
     elements: [RangeInclusive<u64>; 32],

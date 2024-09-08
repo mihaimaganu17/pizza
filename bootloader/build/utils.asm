@@ -341,27 +341,34 @@ _enter_ia32e:
     ; quad [esp + 0x0c] ; stack
     ; quad [esp + 0x04] ; entry point
     mov esi, dword [esp + 0x1c] ; Pointer to the PML4 page table
+
+    ; Disable paging (Set PG to 0)
+    mov eax, cr0
+    or eax, 0x7fffffff
+    mov cr0, eax
+    ; Enable physical address extension. This allows addresses with more than 32 bits to be
+    ; represented.
+    mov eax, cr4
+    or eax, 1 << 5
+    mov cr4, eax
+    ; Load the CR3 with the physical base address of the Level 4 page map table (PML4)
     mov cr3, esi
-	; Set NXE (NX enable) and LME (long mode enable)
-	mov edx, 0
-	mov eax, 0x00000900
-	mov ecx, 0xc0000080
-	wrmsr
+    ; Enable IA-32e mode, by setting the IA32_EFER.LME = 1, which is the 8th bit in MSR C000_0080H
+    mov ecx, 0xc0000080
+    ; Reads MSR from the adress in ECX into registers EDX:EAX
+    rdmsr
+    xor eax, eax
+    xor edx, edx
+    ; Enable IA-32e mode operation and not execute (bit 8 and 11)
+    mov eax, 0b1001 << 8
+    ; Writes the contents of registers EDX:EAX into a 64-bit MSR address specified in the ECX
+    ; register
+    wrmsr
+    ; Enable paging by setting CR0.PG = 1
+    mov eax, cr0
+    or eax, 1 << 31
+    mov cr0, eax
 
-	xor eax, eax
-	or  eax, (1 <<  9) ; OSFXSR
-	or  eax, (1 << 10) ; OSXMMEXCPT
-	or  eax, (1 <<  5) ; PAE
-	or  eax, (1 <<  3) ; DE
-	mov cr4, eax
-
-	xor eax, eax
-	and eax, ~(1 <<  2) ; Clear Emulation flag
-	or  eax,  (1 <<  0) ; Protected mode enable
-	or  eax,  (1 <<  1) ; Monitor co-processor
-	or  eax,  (1 << 16) ; Write protect
-	or  eax,  (1 << 31) ; Paging enable
-	mov cr0, eax
     ; Load the 64-bit IA-32 GDT
     lgdt [ia32e_gdtr]
 
