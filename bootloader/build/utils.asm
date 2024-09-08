@@ -337,75 +337,37 @@ ret_to_rust:
     global _enter_ia32e
 _enter_ia32e:
     ; Get the parameters passed by the function
-    ; dword [esp + 0x4] ; value to be put in the cr3
-    ; quad [esp + 0x08] ; stack
-    ; quad [esp + 0x10] ; entry point
-    mov esi, dword [esp + 0x4] ; Pointer to the PML4 page table
-    ; Disable paging (Set PG to 0)
-    mov eax, cr0
-    or eax, 0x7fffffff
-    mov cr0, eax
-    ; Enable physical address extension. This allows addresses with more than 32 bits to be
-    ; represented.
-    mov eax, cr4
-    or eax, 1 << 5
-    mov cr4, eax
-    ; Load the CR3 with the physical base address of the Level 4 page map table (PML4)
+    ; dword [esp + 0x14] ; value to be put in the cr3
+    ; quad [esp + 0x0c] ; stack
+    ; quad [esp + 0x04] ; entry point
+    mov esi, dword [esp + 0x1c] ; Pointer to the PML4 page table
     mov cr3, esi
-    ; Enable IA-32e mode, by setting the IA32_EFER.LME = 1, which is the 8th bit in MSR C000_0080H
-    mov ecx, 0xc0000080
-    ; Reads MSR from the adress in ECX into registers EDX:EAX
-    rdmsr
-    xor eax, eax
-    xor edx, edx
-    ; Enable IA-32e mode operation and not execute (bit 8 and 11)
-    mov eax, 0b1001 << 8
-    ; Writes the contents of registers EDX:EAX into a 64-bit MSR address specified in the ECX
-    ; register
-    wrmsr
-    ; Enable paging by setting CR0.PG = 1
-    mov eax, cr0
-    or eax, 1 << 31
-    mov cr0, eax
+	; Set NXE (NX enable) and LME (long mode enable)
+	mov edx, 0
+	mov eax, 0x00000900
+	mov ecx, 0xc0000080
+	wrmsr
 
+	xor eax, eax
+	or  eax, (1 <<  9) ; OSFXSR
+	or  eax, (1 << 10) ; OSXMMEXCPT
+	or  eax, (1 <<  5) ; PAE
+	or  eax, (1 <<  3) ; DE
+	mov cr4, eax
+
+	xor eax, eax
+	and eax, ~(1 <<  2) ; Clear Emulation flag
+	or  eax,  (1 <<  0) ; Protected mode enable
+	or  eax,  (1 <<  1) ; Monitor co-processor
+	or  eax,  (1 << 16) ; Write protect
+	or  eax,  (1 << 31) ; Paging enable
+	mov cr0, eax
     ; Load the 64-bit IA-32 GDT
-    lgdt [ia32e_gdt]
+    lgdt [ia32e_gdtr]
 
     ; Jump to IA-32e mode (also known as long mode)
     jmp 0x0008:ia32e_mode
 
-[bits 64]
-ia32e_mode:
-    ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
-    ; and each entry is 8 bytes (first is 0, second is code selector)
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
-    mov gs, ax
-    mov fs, ax
-
-    mov rdi, qword [rsp + 0x10] ; Entry point for the function that will execute from Rust in ia32e
-    mov rbp, qword [rsp + 0x08] ; Stack
-    ; In the MSFT x64 calling convention, stack space is allocated even for parameters passed in
-    ; registers, like the first 4 parameters passed in RCX, RDX, R8 and R9. This means that we need
-    ; to consider an additional 32 bytes (8 * 4) of space on the stack. In addition, we need to
-    ; add a fake return address that the `iretq` will return to
-    sub rbp, 40
-
-    ; Push the iret frame -> Intel Manual Vol 3a, 6.14.4
-    ; SS
-    push qword 0x10
-    ; RSP
-    push qword rbp
-    ; Push flags
-    pushfq
-    ; Push code selector
-    push qword 0x08
-    ; push the instruction pointer
-    push qword rdi
-    ; Execute the interrupt
-    iretq
 
 
     section .data
@@ -452,3 +414,39 @@ ia32e_gdtr:
     dw (ia32e_gdtr - ia32e_gdt) - 1
     ; 4-bytes for the offset in 32-bit mode
     dd ia32e_gdt
+    dd 0
+
+[bits 64]
+ia32e_mode:
+    ; Set all the segments to the data segment selector from the new GDT, which is the 3rd entry
+    ; and each entry is 8 bytes (first is 0, second is code selector)
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov gs, ax
+    mov fs, ax
+
+    mov rdi, qword [rsp + 0x04] ; Entry point for the function that will execute from Rust in ia32e
+    mov rbp, qword [rsp + 0x0c] ; Stack
+    ; In the MSFT x64 calling convention, stack space is allocated even for parameters passed in
+    ; registers, like the first 4 parameters passed in RCX, RDX, R8 and R9. This means that we need
+    ; to consider an additional 32 bytes (8 * 4) of space on the stack. In addition, we need to
+    ; add a fake return address that the `iretq` will return to
+    sub rbp, 0x28
+
+    mov rcx, qword [rsp+0x14]
+
+    ; Push the iret frame -> Intel Manual Vol 3a, 6.14.4
+    ; SS
+    push qword 0x0010
+    ; RSP
+    push qword rbp
+    ; Push flags
+    pushfq
+    ; Push code selector
+    push qword 0x0008
+    ; push the instruction pointer
+    push qword rdi
+    ; Execute the interrupt
+    iretq
