@@ -6,7 +6,7 @@ use core::{
     ops::RangeInclusive,
 };
 use crate::asm_ffi::{RegSelState, real_mode_int};
-/*use mmu::{AddressTranslate, PhysicalAddress};
+use mmu::{AddressTranslate, PhysicalAddress};
 
 impl AddressTranslate for Mmu {
     unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
@@ -27,7 +27,8 @@ impl AddressTranslate for Mmu {
         // Return the physical address pointer
         Some(phys_addr as *mut u8)
     }
-}*/
+}
+/*
 use mmu::{PhysAddr, PhysMem};
 
 /// A wrapper on a range set to allow implementing the `PhysMem` trait
@@ -55,7 +56,7 @@ impl<'a> PhysMem for Mmu {
         self.allocate(layout.size() as u64, layout.align() as u64)
             .map(|x| PhysAddr(x as u64))
     }
-}
+}*/
 
 // Stores a `RangeSet` containing all the free memory reported by the e820
 pub static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);

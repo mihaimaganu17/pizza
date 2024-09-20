@@ -7,8 +7,8 @@ name = "bootloader"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "mmu",
  "ops",
- "page_table",
  "parse-pe",
  "serial",
  "sync",
@@ -19,15 +19,16 @@ name = "cpu"
 version = "0.1.0"
 
 [[package]]
-name = "ops"
-version = "0.1.0"
-
-[[package]]
-name = "page_table"
+name = "mmu"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "serial",
 ]
+
+[[package]]
+name = "ops"
+version = "0.1.0"
 
 [[package]]
 name = "parse-pe"

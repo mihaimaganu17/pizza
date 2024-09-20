@@ -252,7 +252,7 @@ impl RangeSet {
             let alloc_range = RangeInclusive::new(start, end);
 
             if entry.end() >= alloc_range.end() {
-                self.consume(&alloc_range)?;
+                self.discard(&alloc_range)?;
                 // Return the pointer to the new range
                 return usize::try_from(start).ok();
             }
