@@ -143,9 +143,11 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
                     Layout::from_size_align(page_size.size() as usize, page_size.size() as usize)?
                 );
                 page.copy_from(temp_slice.as_ptr(), temp_slice.len());
-                page as *mut u64 as u64
+                page as *mut u64 as u64 | PAGE_PRESENT
+                    | if rwx.write { PAGE_WRITE } else { 0 }
+                    | if !rwx.execute { PAGE_NXE } else { 0 }
             };
-            self.map_page(VirtualAddress(page_frame_addr), Some(page | 3), page_size, rwx)?;
+            self.map_page(VirtualAddress(page_frame_addr), Some(page), page_size)?;
         }
         Ok(())
     }
@@ -159,7 +161,6 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         // Raw value to map at the address
         maybe_raw: Option<u64>,
         page_size: PageSize,
-        rwx: RWX,
     ) -> Result<(), MapError> {
         // Check that the address is aligned according to the size
         let align_mask = page_size.size() - 1;
@@ -218,39 +219,32 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
                 unsafe {
                     table_ptr = table_ptr.add((*page_table_ptr) as usize);
 
-                    if depth == page_table_ptrs.len() - 1 && maybe_raw.is_some() {
-                        *table_ptr = maybe_raw.unwrap();
-                        if (*table_ptr & PAGE_PRESENT) != 0
-                            && core::mem::size_of::<usize>() != core::mem::size_of::<u64>(){
-                            // We caused an update, we need to invalidate the TLB
-                            x86::invlpg(*table_ptr);
+                    if depth == page_table_ptrs.len() - 1 {
+                        if let Some(raw) = maybe_raw {
+                            *table_ptr = raw;
+                            if (*table_ptr & PAGE_PRESENT) != 0
+                                && core::mem::size_of::<usize>() != core::mem::size_of::<u64>(){
+                                // We caused an update, we need to invalidate the TLB
+                                x86::invlpg(raw);
+                            }
+                            return Ok(());
                         }
-                        return Ok(());
-                    }
-
-                    // If the table does not exist yet, as in our pointer references a zero entry,
-                    // we allocate it
-                    if (*table_ptr & PAGE_PRESENT) == 0 {
-                        let temp_table_ptr = if depth < page_table_ptrs.len() - 1 {
-                            // This should not use the `alloc` crate allocation methods since we want
-                            // to keep the pointer valid beyond this scope.
-                            self.mem.alloc_zeroed(
-                                Layout::from_size_align(PAGE_TABLE_SIZE, PAGE_TABLE_SIZE)?
-                            )
-                        } else {
-                            self.mem.alloc_zeroed(
-                                Layout::from_size_align(
-                                    page_size.size() as usize,
-                                    page_size.size() as usize,
-                                )?
-                            )
-                        };
-                        // We asign the new address to our pointer
-                        *table_ptr = temp_table_ptr as *mut u64 as u64 ;
-                        *table_ptr = *table_ptr | PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
+                    } else if depth != page_table_ptrs.len() - 1 {
+                        // If the table does not exist yet, as in our pointer references a zero entry,
+                        // we allocate it
+                        if (*table_ptr & PAGE_PRESENT) == 0 {
+                            let temp_table_ptr =
+                                // This should not use the `alloc` crate allocation methods since we want
+                                // to keep the pointer valid beyond this scope.
+                                self.mem.alloc_zeroed(
+                                    Layout::from_size_align(PAGE_TABLE_SIZE, PAGE_TABLE_SIZE)?
+                                );
+                            // We asign the new address to our pointer
+                            *table_ptr = temp_table_ptr as *mut u64 as u64 ;
+                            *table_ptr = *table_ptr | PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
+                        }
                     }
                     next_table= *table_ptr;
-
                 }
             } else {
                 // The biggest page frame we can have is 1Gb, which needs 2 indirect pointers to be
@@ -262,18 +256,6 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
                 }
             }
         }
-
-        /*
-        let page_frame_addr = Self::page_frame_addr(VirtualAddress(next_table), page_size);
-        if let Some(raw) = maybe_raw {
-            // If the size of the slice is to big to be mapped, we return an error
-            if raw.len() > page_size.size() as usize {
-                return Err(MapError::DataOverflow(raw.len()));
-            }
-            unsafe {
-                (page_frame_addr as *mut u8).copy_from(raw.as_ptr(), raw.len());
-            }
-        }*/
 
         Ok(())
     }

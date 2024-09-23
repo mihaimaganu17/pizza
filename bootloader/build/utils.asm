@@ -345,12 +345,11 @@ _enter_ia32e:
 
     ; Disable paging (Set PG to 0)
     mov eax, cr0
-    or eax, 0x7fffffff
+    ;or eax, 0x7fffffff
     mov cr0, eax
     ; Enable physical address extension. This allows addresses with more than 32 bits to be
     ; represented.
     mov eax, cr4
-    or eax, 1 << 5
     or  eax, (1 <<  9) ; OSFXSR
 	or  eax, (1 << 10) ; OSXMMEXCPT
 	or  eax, (1 <<  5) ; PAE

@@ -45,7 +45,6 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
                     VirtualAddress(p),
                     Some(p | 3),
                     PageSize::Page4Kb,
-                    RWX { read: true, write: true, execute: true},
                 ).expect("Failed to map PE");
             }
 
@@ -64,7 +63,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
                 VirtualAddress(0xb00_0000_0000),
                 core::alloc::Layout::from_size_align(8192, 4096).expect("Failed to create layout"),
                 PageSize::Page4Kb,
-                RWX { read: true, write: true, execute: true },
+                RWX { read: true, write: true, execute: false },
             ).expect("Failed to map a stack");
             pml4
         };
@@ -76,9 +75,8 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         unsafe {
             println!("Entry point {:x?}", kernel.entry_point());
 
-            x86::halt();
-            //enter_ia32e(kernel.entry_point(), 0xb00_0000_0000 + 8192, 0u64, table.table().0 as u32);
             enter_ia32e(kernel.entry_point(), 0xb00_0000_0000 + 8192, 0u64, pml4.cr3().0 as u32);
+            x86::halt();
         }
     }
     println!("We made it!\n");
