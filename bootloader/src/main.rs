@@ -18,10 +18,14 @@ extern crate alloc;
 
 #[no_mangle]
 extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u32) {
+    // Initialize serial ports
     serial::init();
+    // Initialize memory
     memory::init();
 
+    // Download the kernel
     let kernel = pxe::download(b"pizza.kernel").expect("Kernel download");
+    // Parse the kernel's PE
     let kernel = Pe::parse(&kernel).expect("Kernel parsing");
 
     // Create a page table and jump in IA-32e mode
@@ -34,15 +38,16 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
             // Create a new PML4 table
             let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
 
-            // Create an identity map
+            // Create an identity map of the current memory
             for p in (0..(4 * 1024 * 1024 * 1024)).step_by(4096) {
                 pml4.map_page(
                     VirtualAddress(p),
-                    Some(p | 3),
+                    p | 3,
                     PageSize::Page4Kb,
                 ).expect("Failed to map PE");
             }
 
+            // Map the section of the kernel in memory
             kernel.access_sections(|base, _size, bytes| {
                 pml4.map_slice(
                     VirtualAddress(base),
@@ -68,14 +73,9 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         }
 
         unsafe {
-            println!("Entry point {:x?}", kernel.entry_point());
-
             enter_ia32e(kernel.entry_point(), 0xb00_0000_0000 + 8192, 0u64, pml4.cr3().0 as u32);
-            x86::halt();
         }
     }
-    println!("We made it!\n");
-
 }
 
 #[panic_handler]

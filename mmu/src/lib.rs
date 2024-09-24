@@ -96,10 +96,13 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         Self::from_addr(mem, PhysicalAddress(pml4_table as *mut u64 as u64))
     }
 
+    /// Get the cr3 pointing to the 4-level page table
     pub fn cr3(&self) -> PhysicalAddress {
         self.cr3_root
     }
 
+    /// Map a zero-filled region at `virtual_address` with the given `layout`, where the page frame
+    /// is of size `page_size` and has the `rwx` permissions.
     pub unsafe fn map_zero(
         &mut self,
         virtual_address: VirtualAddress,
@@ -111,55 +114,59 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         self.map_slice(virtual_address, region, page_size, rwx)
     }
 
+    /// Map a `slice` of bytes at `virtual_address` with the given `layout`, where the page frame
+    /// is of size `page_size` and has the `rwx` permissions.
     pub fn map_slice(
         &mut self,
         virtual_address: VirtualAddress,
-        // Raw value to map at the address
         slice: &[u8],
         page_size: PageSize,
         rwx: RWX,
     ) -> Result<(), MapError> {
+        // Get the start address of the region to be mapped
         let start = virtual_address.0;
+        // Get the end address of the region to be mapped
         let end = start.saturating_add(slice.len() as u64);
+        // Go through each page that makes up the region
         for page_frame_addr in (start..end).step_by(page_size.size() as usize) {
+            // Compute the start offset into the slice
             let slice_start = page_frame_addr.saturating_sub(virtual_address.0) as usize;
-            serial::println!("Page {:#x?}, Slice start {:#x?}, slice len {:#x?}, end {:#x?}",
-                page_frame_addr,
-                slice_start,
-                slice.len(),
-                end,
-            );
-            // If we are at the last slice, we just read until the end
+            // If the remaining bytes are less than a page size, we fetch the remaining of the slice
+            // until the end
             let temp_slice = if page_frame_addr.saturating_add(page_size.size()) > end {
                 slice.get(slice_start..).ok_or(MapError::RangeOverflow)?
             } else {
+                // Otherwise we take an entire page
                 slice
                     .get(slice_start..slice_start.saturating_add(page_size.size() as usize))
                     .ok_or(MapError::RangeOverflow)?
             };
+            // Create the page frame that will be mapped
             let page = unsafe {
-                // Allocate the page
-                let page = self.mem.alloc_zeroed(
+                // Allocate the page and
+                let page = self.mem.alloc(
                     Layout::from_size_align(page_size.size() as usize, page_size.size() as usize)?
                 );
+                // Copy the contents of the slice into the page
                 page.copy_from(temp_slice.as_ptr(), temp_slice.len());
+                // Mark the page frame as present and with the desired permissions
                 page as *mut u64 as u64 | PAGE_PRESENT
                     | if rwx.write { PAGE_WRITE } else { 0 }
                     | if !rwx.execute { PAGE_NXE } else { 0 }
             };
-            self.map_page(VirtualAddress(page_frame_addr), Some(page), page_size)?;
+            // Map the above created page frame
+            self.map_page(VirtualAddress(page_frame_addr), page, page_size)?;
         }
         Ok(())
     }
 
-    // Map a virtual address using the 4-level paging translation, with page frames of size
-    // `page_size` with the desired `rwx` read, write, execute permissions and fill it with the
-    // potential value stored in `maybe_raw`
+    /// Map a virtual address using the 4-level paging translation, with a page frame `raw` of size
+    /// `page_size` with the desired `rwx` read, write, execute permissions.
+    /// The page frame located at `raw` has to already be allocated and must be of size `page_size`
     pub fn map_page(
         &mut self,
         virtual_address: VirtualAddress,
-        // Raw value to map at the address
-        maybe_raw: Option<u64>,
+        raw: u64,
         page_size: PageSize,
     ) -> Result<(), MapError> {
         // Check that the address is aligned according to the size
@@ -214,24 +221,26 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             if let Some(page_table_ptr) = maybe_page_table_ptr {
                 // First we go to the table
                 next_table = next_table & 0xffffffffff000;
-                // Cast the address into a pointer, because this is what it essentially is
+                // Cast the address into a pointer, where each entry is of size `u64`
                 let mut table_ptr = next_table as *mut u64;
                 unsafe {
+                    // Move to the desired entry for that level
                     table_ptr = table_ptr.add((*page_table_ptr) as usize);
 
+                    // If we are at the last table
                     if depth == page_table_ptrs.len() - 1 {
-                        if let Some(raw) = maybe_raw {
-                            *table_ptr = raw;
-                            if (*table_ptr & PAGE_PRESENT) != 0
-                                && core::mem::size_of::<usize>() != core::mem::size_of::<u64>(){
-                                // We caused an update, we need to invalidate the TLB
-                                x86::invlpg(raw);
-                            }
-                            return Ok(());
+                        // If the entry is currently present and we are in 64 bit mode
+                        if (*table_ptr & PAGE_PRESENT) != 0
+                            && core::mem::size_of::<usize>() != core::mem::size_of::<u64>(){
+                            // We caused an update, we need to invalidate the TLB
+                            x86::invlpg(raw);
                         }
-                    } else if depth != page_table_ptrs.len() - 1 {
-                        // If the table does not exist yet, as in our pointer references a zero entry,
-                        // we allocate it
+                        // Update the page with the desired entry
+                        *table_ptr = raw;
+                        // Mapping done, we return success
+                        return Ok(());
+                    } else {
+                        // If the table is not yet preset, we allocate it
                         if (*table_ptr & PAGE_PRESENT) == 0 {
                             let temp_table_ptr =
                                 // This should not use the `alloc` crate allocation methods since we want
@@ -258,25 +267,6 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         }
 
         Ok(())
-    }
-
-    // Extracts the page frame address given a page table entry, virtual address and a page size
-    fn page_frame_offset(virt_addr: VirtualAddress, page_size: PageSize) -> u64 {
-        match page_size {
-            PageSize::Page4Kb => virt_addr.0 & ((1 << 12) - 1),
-            PageSize::Page2Mb => virt_addr.0 & ((1 << 21) - 1),
-            PageSize::Page1Gb => virt_addr.0 & ((1 << 30) - 1),
-        }
-    }
-
-    // Extracts the page frame address given a page table entry, virtual address and a page size
-    fn page_frame_addr(virt_addr: VirtualAddress, page_size: PageSize) -> u64 {
-        // At this point, we need to map the actual page frame
-        match page_size {
-            PageSize::Page4Kb => virt_addr.0 & (((1 << 40) - 1) << 12),
-            PageSize::Page2Mb => virt_addr.0 & (((1 << 31) - 1) << 21),
-            PageSize::Page1Gb => virt_addr.0 & (((1 << 22) - 1) << 30),
-        }
     }
 }
 

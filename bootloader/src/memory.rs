@@ -28,35 +28,6 @@ impl AddressTranslate for Mmu {
         Some(phys_addr as *mut u8)
     }
 }
-/*
-use mmu::{PhysAddr, PhysMem};
-
-/// A wrapper on a range set to allow implementing the `PhysMem` trait
-pub struct PhysicalMemory<'a>(pub &'a mut RangeSet);
-
-impl<'a> PhysMem for Mmu {
-    unsafe fn translate(&mut self, paddr: PhysAddr, size: usize)
-            -> Option<*mut u8> {
-        // Can't translate for a 0 size access
-        if size <= 0 {
-            return None;
-        }
-
-        // Convert the physical address into a `usize` which is addressable in
-        // the bootloader
-        let paddr: usize = paddr.0.try_into().ok()?;
-        let _pend: usize = paddr.checked_add(size - 1)?;
-
-        // At this point, `paddr` for `size` bytes fits in the 32-bit address
-        // space we have mapped in!
-        Some(paddr as *mut u8)
-    }
-
-    fn alloc_phys(&mut self, layout: Layout) -> Option<PhysAddr> {
-        self.allocate(layout.size() as u64, layout.align() as u64)
-            .map(|x| PhysAddr(x as u64))
-    }
-}*/
 
 // Stores a `RangeSet` containing all the free memory reported by the e820
 pub static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
