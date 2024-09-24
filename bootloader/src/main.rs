@@ -34,7 +34,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         let mut phys_mem = memory::PHYSICAL_MEMORY.lock();
         let phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
 
-        let pml4 = unsafe {
+        let (cr3, stack, entry_point): (u32, u64, u64) = unsafe {
             // Create a new PML4 table
             let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
 
@@ -65,7 +65,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
                 PageSize::Page4Kb,
                 RWX { read: true, write: true, execute: false },
             ).expect("Failed to map a stack");
-            pml4
+            (pml4.cr3().0 as u32, 0xb00_0000_0000 + 8192, kernel.entry_point())
         };
 
         extern {
@@ -73,7 +73,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         }
 
         unsafe {
-            enter_ia32e(kernel.entry_point(), 0xb00_0000_0000 + 8192, 0u64, pml4.cr3().0 as u32);
+            enter_ia32e(entry_point, stack, 0u64, cr3);
         }
     }
 }
