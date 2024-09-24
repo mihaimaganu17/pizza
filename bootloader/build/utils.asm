@@ -351,7 +351,7 @@ _enter_ia32e:
     ; represented.
     mov eax, cr4
     or  eax, (1 <<  9) ; OSFXSR
-	or  eax, (1 << 10) ; OSXMMEXCPT
+	;or  eax, (1 << 10) ; OSXMMEXCPT
 	or  eax, (1 <<  5) ; PAE
 	or  eax, (1 <<  3) ; DE
     mov cr4, eax

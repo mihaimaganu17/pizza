@@ -24,11 +24,6 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     let kernel = pxe::download(b"pizza.kernel").expect("Kernel download");
     let kernel = Pe::parse(&kernel).expect("Kernel parsing");
 
-    kernel.access_sections(|base, size, _bytes| {
-        println!("Base {:x}, size {:x}", base, size);
-        Some(())
-    }).expect("Section access");
-
     // Create a page table and jump in IA-32e mode
     {
         // Get access to phyisical memory
