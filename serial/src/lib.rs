@@ -8,6 +8,7 @@ pub fn init() {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 struct Serial {
     ports: [Option<u16>; 4],
 }
@@ -30,6 +31,9 @@ impl Serial {
             let port_addr: u16 = unsafe { com_ptr.add(id).read() };
             // If the port address is null, or it is already initialised, go to the next one
             if port_addr == 0 || *port != None {
+                if port_addr == 0 {
+                    *port = None;
+                }
                 continue;
             }
             // Initialize the port
@@ -112,6 +116,7 @@ fn write(port: u16, value: u8) {
 }
 
 /// Writer for serial
+#[repr(C)]
 pub struct SerialWriter;
 
 impl core::fmt::Write for SerialWriter {
