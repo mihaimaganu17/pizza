@@ -12,13 +12,35 @@ version = "0.1.0"
 dependencies = [
  "cpu",
  "serial",
+ "state",
 ]
+
+[[package]]
+name = "mmu"
+version = "0.1.0"
+dependencies = [
+ "cpu",
+ "ops",
+ "serial",
+]
+
+[[package]]
+name = "ops"
+version = "0.1.0"
 
 [[package]]
 name = "serial"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "sync",
+]
+
+[[package]]
+name = "state"
+version = "0.1.0"
+dependencies = [
+ "mmu",
  "sync",
 ]
 

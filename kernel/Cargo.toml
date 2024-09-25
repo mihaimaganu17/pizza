@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 cpu = { version = "0.1.0", path = "../cpu" }
 serial = { version = "0.1.0", path = "../serial" }
+state = { version = "0.1.0", path = "../state" }

@@ -78,7 +78,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         }
 
         unsafe {
-            enter_ia32e(entry_point, stack, 0u64, cr3);
+            enter_ia32e(entry_point, stack, &BOOT_STATE as *const BootState as u64, cr3);
         }
     }
 }
