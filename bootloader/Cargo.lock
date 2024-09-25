@@ -11,6 +11,7 @@ dependencies = [
  "ops",
  "parse-pe",
  "serial",
+ "state",
  "sync",
 ]
 
@@ -23,6 +24,7 @@ name = "mmu"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "ops",
  "serial",
 ]
 
@@ -74,6 +76,14 @@ name = "serial"
 version = "0.1.0"
 dependencies = [
  "cpu",
+ "sync",
+]
+
+[[package]]
+name = "state"
+version = "0.1.0"
+dependencies = [
+ "mmu",
  "sync",
 ]
 

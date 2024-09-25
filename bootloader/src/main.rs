@@ -12,7 +12,12 @@ use cpu::x86;
 use serial::println;
 use parse_pe::Pe;
 use mmu::{PML4, VirtualAddress, PageSize, RWX};
-//use mmu::{VirtAddr, PageType};
+use state::BootState;
+use sync::LockCell;
+
+pub static BOOT_STATE: BootState = BootState {
+    mmu: LockCell::new(None),
+};
 
 extern crate alloc;
 
@@ -31,7 +36,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     // Create a page table and jump in IA-32e mode
     {
         // Get access to phyisical memory
-        let mut phys_mem = memory::PHYSICAL_MEMORY.lock();
+        let mut phys_mem = BOOT_STATE.mmu.lock();
         let phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
 
         let (cr3, stack, entry_point): (u32, u64, u64) = unsafe {

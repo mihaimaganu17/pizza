@@ -351,9 +351,9 @@ _enter_ia32e:
     ; represented.
     mov eax, cr4
     or  eax, (1 <<  9) ; OSFXSR
-	;or  eax, (1 << 10) ; OSXMMEXCPT
-	or  eax, (1 <<  5) ; PAE
-	or  eax, (1 <<  3) ; DE
+    ;or  eax, (1 << 10) ; OSXMMEXCPT
+    or  eax, (1 <<  5) ; PAE
+    or  eax, (1 <<  3) ; DE
     mov cr4, eax
     ; Load the CR3 with the physical base address of the Level 4 page map table (PML4)
     mov cr3, esi
@@ -371,10 +371,10 @@ _enter_ia32e:
     ; Enable paging by setting CR0.PG = 1
     mov eax, cr0
     and eax, ~(1 <<  2) ; Clear Emulation flag
-	or  eax,  (1 <<  0) ; Protected mode enable
-	or  eax,  (1 <<  1) ; Monitor co-processor
-	or  eax,  (1 << 16) ; Write protect
-	or  eax,  (1 << 31) ; Paging enable
+    or  eax,  (1 <<  0) ; Protected mode enable
+    or  eax,  (1 <<  1) ; Monitor co-processor
+    or  eax,  (1 << 16) ; Write protect
+    or  eax,  (1 << 31) ; Paging enable
     mov cr0, eax
 
     ; Load the 64-bit IA-32 GDT

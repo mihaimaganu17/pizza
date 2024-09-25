@@ -8,6 +8,7 @@ use core::{
 
 /// Provides immutable and mutable exclusive access to the wrapped value. It is implementation is
 /// based on the ticket lock, while the inner value is accessed through an `UnsafeCell`.
+#[repr(C)]
 pub struct LockCell<T: ?Sized> {
     serving: AtomicUsize,
     release: AtomicUsize,

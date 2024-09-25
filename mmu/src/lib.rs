@@ -1,6 +1,7 @@
 #![no_std]
-use core::alloc::Layout;
+use core::{alloc::Layout, ops::RangeInclusive};
 use cpu::x86;
+use ops::RangeSet;
 
 /// Implementors of this trait are capable of taking advantange of Intels x86 4-Level Paging
 /// linear address translation capability
@@ -269,6 +270,54 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         Ok(())
     }
 }
+
+impl AddressTranslate for Mmu {
+    unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
+        self
+            .allocate(layout.size() as u64, layout.align() as u64)
+            .expect("Failed to allocate memory")
+            as *mut u8
+    }
+    unsafe fn translate(&self, physical_address: PhysicalAddress, size: usize) -> Option<*mut u8> {
+        // We do not alloc 0 sized allocations
+        if size == 0 {
+            return None;
+        }
+        // Convert the physical address into the size of the bootloader target
+        let phys_addr = usize::try_from(physical_address.0).ok()?;
+        // Check if the allocation `size` fits into our allowed space
+        let _ = phys_addr.checked_add(size)?;
+        // Return the physical address pointer
+        Some(phys_addr as *mut u8)
+    }
+}
+
+pub struct Mmu {
+    // Describes the current free memory we have left on the device
+    set: RangeSet,
+}
+
+impl Mmu {
+    pub fn new(set: RangeSet) -> Self {
+        Self { set }
+    }
+
+    /// Tries to allocate a region from physical memory with `size` bytes and aligned to a multiple
+    /// of `align` bytes. Returns the address of the new allocated address if allocation was
+    /// successful or null otherwise.
+    /// Allocation could fail for one of the following reasons:
+    /// - Memory is too fragmented and there isn't room to fit a continuous new block
+    /// - The allocation does not fit into the pointer size of the target memory. For example
+    /// trying to allocat 0xff_ffff_ffff in a 16-bit mode.
+    pub fn allocate(&mut self, size: u64, align: u64) -> Option<usize> {
+        self.set.allocate(size, align)
+    }
+
+    pub fn deallocate(&mut self, range: RangeInclusive<u64>) -> Option<()> {
+        self.set.insert(range)
+    }
+}
+
 
 #[derive(Debug)]
 pub enum MapError {

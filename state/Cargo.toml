@@ -1,0 +1,8 @@
+[package]
+name = "state"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sync = { version = "0.1.0", path = "../sync" }
+mmu = { version = "0.1.0", path = "../mmu" }

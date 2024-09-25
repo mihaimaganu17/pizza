@@ -1,36 +1,12 @@
 //! Module defining and implementing the memory manager
 use ops::RangeSet;
-use sync::LockCell;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ops::RangeInclusive,
 };
 use crate::asm_ffi::{RegSelState, real_mode_int};
-use mmu::{AddressTranslate, PhysicalAddress};
-
-impl AddressTranslate for Mmu {
-    unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
-        self
-            .allocate(layout.size() as u64, layout.align() as u64)
-            .expect("Failed to allocate memory")
-            as *mut u8
-    }
-    unsafe fn translate(&self, physical_address: PhysicalAddress, size: usize) -> Option<*mut u8> {
-        // We do not alloc 0 sized allocations
-        if size == 0 {
-            return None;
-        }
-        // Convert the physical address into the size of the bootloader target
-        let phys_addr = usize::try_from(physical_address.0).ok()?;
-        // Check if the allocation `size` fits into our allowed space
-        let _ = phys_addr.checked_add(size)?;
-        // Return the physical address pointer
-        Some(phys_addr as *mut u8)
-    }
-}
-
-// Stores a `RangeSet` containing all the free memory reported by the e820
-pub static PHYSICAL_MEMORY: LockCell<Option<Mmu>> = LockCell::new(None);
+use mmu::Mmu;
+use crate::BOOT_STATE;
 
 // Structure used by the memory manager to allocate memory. This implements `GlobalAlloc` crate in
 // order to be used by Rust.
@@ -41,7 +17,7 @@ static ALLOCATOR: GlobalAllocator = GlobalAllocator;
 
 unsafe impl GlobalAlloc for GlobalAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
+        let mut phys_mem_lock = BOOT_STATE.mmu.lock();
 
         let ptr = phys_mem_lock.as_mut()
             .and_then(|mmu| mmu.allocate(layout.size() as u64, layout.align() as u64))
@@ -53,7 +29,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         if layout.size() == 0 {
             return;
         }
-        let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
+        let mut phys_mem_lock = BOOT_STATE.mmu.lock();
         let ptr = ptr as u64;
         let end = ptr.saturating_add(layout.size() as u64).saturating_sub(1);
         // Compute the range to be deallocated
@@ -64,31 +40,6 @@ unsafe impl GlobalAlloc for GlobalAllocator {
     }
 }
 
-pub struct Mmu {
-    // Describes the current free memory we have left on the device
-    set: RangeSet,
-}
-
-impl Mmu {
-    pub fn new(set: RangeSet) -> Self {
-        Self { set }
-    }
-
-    /// Tries to allocate a region from physical memory with `size` bytes and aligned to a multiple
-    /// of `align` bytes. Returns the address of the new allocated address if allocation was
-    /// successful or null otherwise.
-    /// Allocation could fail for one of the following reasons:
-    /// - Memory is too fragmented and there isn't room to fit a continuous new block
-    /// - The allocation does not fit into the pointer size of the target memory. For example
-    /// trying to allocat 0xff_ffff_ffff in a 16-bit mode.
-    pub fn allocate(&mut self, size: u64, align: u64) -> Option<usize> {
-        self.set.allocate(size, align)
-    }
-
-    pub fn deallocate(&mut self, range: RangeInclusive<u64>) -> Option<()> {
-        self.set.insert(range)
-    }
-}
 
 #[derive(Default)]
 #[repr(C)]
@@ -161,7 +112,7 @@ pub fn init() -> Option<()> {
     };
 
     // Acquire a lock for the `RangeSet`
-    let mut phys_mem_lock = PHYSICAL_MEMORY.lock();
+    let mut phys_mem_lock = BOOT_STATE.mmu.lock();
     // If we previously allocated, panic
     assert!(phys_mem_lock.is_none(), "Already allocated");
     // Insert the set
