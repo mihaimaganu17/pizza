@@ -3,6 +3,8 @@ use core::{alloc::Layout, ops::RangeInclusive};
 use cpu::x86;
 use ops::RangeSet;
 
+use serial::println;
+
 /// Implementors of this trait are capable of taking advantange of Intels x86 4-Level Paging
 /// linear address translation capability
 pub trait AddressTranslate {
@@ -128,6 +130,23 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
         let start = virtual_address.0;
         // Get the end address of the region to be mapped
         let end = start.saturating_add(slice.len() as u64);
+
+        // If the slice is empty, we allocate a page nonetheless
+        if start == end {
+            // Create the page frame that will be mapped
+            let page = unsafe {
+                // Allocate the page and
+                let page = self.mem.alloc(
+                    Layout::from_size_align(page_size.size() as usize, page_size.size() as usize)?
+                );
+                // Mark the page frame as present and with the desired permissions
+                page as *mut u64 as u64 | PAGE_PRESENT
+                    | if rwx.write { PAGE_WRITE } else { 0 }
+                    | if !rwx.execute { PAGE_NXE } else { 0 }
+            };
+            // Map the above created page frame
+            self.map_page(VirtualAddress(start), page, page_size)?;
+        }
         // Go through each page that makes up the region
         for page_frame_addr in (start..end).step_by(page_size.size() as usize) {
             // Compute the start offset into the slice
@@ -135,19 +154,23 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             // If the remaining bytes are less than a page size, we fetch the remaining of the slice
             // until the end
             let temp_slice = if page_frame_addr.saturating_add(page_size.size()) > end {
+                println!("Before getting addr {:x?} partial slice {:x?}", page_frame_addr, slice_start);
                 slice.get(slice_start..).ok_or(MapError::RangeOverflow)?
             } else {
+                println!("Before getting addr {:x?} full slice {:x?}", page_frame_addr, slice_start);
                 // Otherwise we take an entire page
                 slice
                     .get(slice_start..slice_start.saturating_add(page_size.size() as usize))
                     .ok_or(MapError::RangeOverflow)?
             };
+            println!("After getting addr {:x?} partial slice {:x?}", page_frame_addr, slice_start);
             // Create the page frame that will be mapped
             let page = unsafe {
                 // Allocate the page and
                 let page = self.mem.alloc(
                     Layout::from_size_align(page_size.size() as usize, page_size.size() as usize)?
                 );
+                println!("Allocated {:?}", page);
                 // Copy the contents of the slice into the page
                 page.copy_from(temp_slice.as_ptr(), temp_slice.len());
                 // Mark the page frame as present and with the desired permissions

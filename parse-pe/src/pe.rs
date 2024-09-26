@@ -100,9 +100,8 @@ impl<'data> Pe<'data> {
             // Compute the absolute Virtual Address of this section
             let section_base = self.opt_header.image_base()
                 .saturating_add(u64::from(section.virtual_address()));
-            let section_size = section_size;
 
-            f(section_base, section_size, bytes)?;
+            f(section_base, section.virtual_size(), bytes)?;
         }
 
         Some(())

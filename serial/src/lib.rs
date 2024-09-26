@@ -30,10 +30,7 @@ impl Serial {
             // Go to the `i`th serial port
             let port_addr: u16 = unsafe { com_ptr.add(id).read() };
             // If the port address is null, or it is already initialised, go to the next one
-            if port_addr == 0 || *port != None {
-                if port_addr == 0 {
-                    *port = None;
-                }
+            if port_addr == 0 {
                 continue;
             }
             // Initialize the port
@@ -83,7 +80,7 @@ fn init_serial(port: u16) {
     // Wait until we can read
     while data_ready(port) == 0 {}
     // Test we got the same byte
-    //assert!(in_u8(port) == b'M');
+    assert!(in_u8(port) == b'M');
 
     // If the serial is not faulty, set it in normal operation mode
     out_u8(port.saturating_add(4), 0x0f);

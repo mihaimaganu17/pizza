@@ -347,11 +347,13 @@ _enter_ia32e:
     mov eax, cr0
     ;or eax, 0x7fffffff
     mov cr0, eax
+    mov eax, cr4
+
+    ; Enable extensions used by Rust to optimise code execution
+    or  eax, (1 <<  9) ; OSFXSR
+    or  eax, (1 << 10) ; OSXMMEXCPT
     ; Enable physical address extension. This allows addresses with more than 32 bits to be
     ; represented.
-    mov eax, cr4
-    or  eax, (1 <<  9) ; OSFXSR
-    ;or  eax, (1 << 10) ; OSXMMEXCPT
     or  eax, (1 <<  5) ; PAE
     or  eax, (1 <<  3) ; DE
     mov cr4, eax

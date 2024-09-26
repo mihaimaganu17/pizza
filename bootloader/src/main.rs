@@ -54,6 +54,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
 
             // Map the section of the kernel in memory
             kernel.access_sections(|base, _size, bytes| {
+                println!("Base1 {:x?}, bytes len {:x?} size {:x?}", base, bytes.len(), _size);
                 pml4.map_slice(
                     VirtualAddress(base),
                     bytes,
