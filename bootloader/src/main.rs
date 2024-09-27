@@ -35,11 +35,12 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
 
     // Create a page table and jump in IA-32e mode
     {
-        // Get access to phyisical memory
-        let mut phys_mem = BOOT_STATE.mmu.lock();
-        let phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
 
         let (cr3, stack, entry_point): (u32, u64, u64) = unsafe {
+            // Get access to phyisical memory
+            let mut phys_mem = BOOT_STATE.mmu.lock();
+            let phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
+
             // Create a new PML4 table
             let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
 

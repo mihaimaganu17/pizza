@@ -20,7 +20,8 @@ extern "C" fn entry(boot_state: &BootState) {
 
     {
         let mut phys_mem = boot_state.mmu.lock();
-        let _phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
+        //let _phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
+        serial::println!("{:#?}", "TOO MANY BALLS");
     }
     x86::halt();
 }
