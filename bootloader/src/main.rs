@@ -34,54 +34,56 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
     let kernel = Pe::parse(&kernel).expect("Kernel parsing");
 
     // Create a page table and jump in IA-32e mode
-    {
+    let (cr3, stack, entry_point): (u32, u64, u64) =  unsafe {
+        // Get access to phyisical memory
+        let mut phys_mem_lock = BOOT_STATE.mmu.lock();
+        let (cr3, stack, entry_point) = {
+        let phys_mem = phys_mem_lock.as_mut().expect("Physical memory not initialised");
 
-        let (cr3, stack, entry_point): (u32, u64, u64) = unsafe {
-            // Get access to phyisical memory
-            let mut phys_mem = BOOT_STATE.mmu.lock();
-            let phys_mem = phys_mem.as_mut().expect("Physical memory not initialised");
+        // Create a new PML4 table
+        let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
 
-            // Create a new PML4 table
-            let mut pml4 = PML4::new(phys_mem).expect("Cannot create PML4 table");
-
-            // Create an identity map of the current memory
-            for p in (0..(4 * 1024 * 1024 * 1024)).step_by(4096) {
-                pml4.map_page(
-                    VirtualAddress(p),
-                    p | 3,
-                    PageSize::Page4Kb,
-                ).expect("Failed to map PE");
-            }
-
-            // Map the section of the kernel in memory
-            kernel.access_sections(|base, _size, bytes| {
-                println!("Base1 {:x?}, bytes len {:x?} size {:x?}", base, bytes.len(), _size);
-                pml4.map_slice(
-                    VirtualAddress(base),
-                    bytes,
-                    PageSize::Page4Kb,
-                    RWX { read: true, write: true, execute: true },
-                ).expect("Failed to map PE");
-                Some(())
-            });
-
-            // Allocate and map a stack
-            pml4.map_zero(
-                VirtualAddress(0xb00_0000_0000),
-                core::alloc::Layout::from_size_align(8192, 4096).expect("Failed to create layout"),
+        // Create an identity map of the current memory
+        for p in (0..(4 * 1024 * 1024 * 1024)).step_by(4096) {
+            pml4.map_page(
+                VirtualAddress(p),
+                p | 3,
                 PageSize::Page4Kb,
-                RWX { read: true, write: true, execute: false },
-            ).expect("Failed to map a stack");
+            ).expect("Failed to map PE");
+        }
+
+        // Map the section of the kernel in memory
+        kernel.access_sections(|base, _size, bytes| {
+            println!("Base1 {:x?}, bytes len {:x?} size {:x?}", base, bytes.len(), _size);
+            pml4.map_slice(
+                VirtualAddress(base),
+                bytes,
+                PageSize::Page4Kb,
+                RWX { read: true, write: true, execute: true },
+            ).expect("Failed to map PE");
+            Some(())
+        });
+
+        // Allocate and map a stack
+        pml4.map_zero(
+            VirtualAddress(0xb00_0000_0000),
+            core::alloc::Layout::from_size_align(8192, 4096).expect("Failed to create layout"),
+            PageSize::Page4Kb,
+            RWX { read: true, write: true, execute: false },
+        ).expect("Failed to map a stack");
             (pml4.cr3().0 as u32, 0xb00_0000_0000 + 8192, kernel.entry_point())
         };
+        drop(phys_mem_lock);
 
+        (cr3, stack, entry_point)
+    };
+
+    unsafe {
         extern {
             fn enter_ia32e(entry_point: u64, stack: u64, param: u64, cr3: u32) -> !;
         }
-
-        unsafe {
-            enter_ia32e(entry_point, stack, &BOOT_STATE as *const BootState as u64, cr3);
-        }
+        serial::println!("Boot state {:#x?}", &BOOT_STATE as *const BootState as u64);
+        enter_ia32e(entry_point, stack, &BOOT_STATE as *const BootState as u64, cr3);
     }
 }
 

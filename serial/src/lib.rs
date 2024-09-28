@@ -7,14 +7,13 @@ pub fn init() {
     Serial::init();
 }
 
-#[derive(Debug)]
 #[repr(C)]
 struct Serial {
     ports: [Option<u16>; 4],
 }
 
 /// Provides mutually exclusive global access to serial ports from COM1 to COM4
-static SERIAL: LockCell<Serial> = LockCell::new( Serial { ports: [None; 4] });
+pub static SERIAL: LockCell<Serial> = LockCell::new( Serial { ports: [None; 4] });
 
 impl Serial {
     /// Initialize all found serial ports. This will initialize each port exactly once, regardless

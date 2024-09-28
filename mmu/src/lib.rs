@@ -315,6 +315,7 @@ impl AddressTranslate for Mmu {
     }
 }
 
+#[repr(C)]
 pub struct Mmu {
     // Describes the current free memory we have left on the device
     set: RangeSet,
