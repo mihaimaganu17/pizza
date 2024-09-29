@@ -3,8 +3,6 @@ use core::{alloc::Layout, ops::RangeInclusive};
 use cpu::x86;
 use ops::RangeSet;
 
-use serial::println;
-
 /// Implementors of this trait are capable of taking advantange of Intels x86 4-Level Paging
 /// linear address translation capability
 pub trait AddressTranslate {
@@ -154,23 +152,19 @@ impl<'mem, A: AddressTranslate> PML4<'mem, A> {
             // If the remaining bytes are less than a page size, we fetch the remaining of the slice
             // until the end
             let temp_slice = if page_frame_addr.saturating_add(page_size.size()) > end {
-                println!("Before getting addr {:x?} partial slice {:x?}", page_frame_addr, slice_start);
                 slice.get(slice_start..).ok_or(MapError::RangeOverflow)?
             } else {
-                println!("Before getting addr {:x?} full slice {:x?}", page_frame_addr, slice_start);
                 // Otherwise we take an entire page
                 slice
                     .get(slice_start..slice_start.saturating_add(page_size.size() as usize))
                     .ok_or(MapError::RangeOverflow)?
             };
-            println!("After getting addr {:x?} partial slice {:x?}", page_frame_addr, slice_start);
             // Create the page frame that will be mapped
             let page = unsafe {
                 // Allocate the page and
                 let page = self.mem.alloc(
                     Layout::from_size_align(page_size.size() as usize, page_size.size() as usize)?
                 );
-                println!("Allocated {:?}", page);
                 // Copy the contents of the slice into the page
                 page.copy_from(temp_slice.as_ptr(), temp_slice.len());
                 // Mark the page frame as present and with the desired permissions

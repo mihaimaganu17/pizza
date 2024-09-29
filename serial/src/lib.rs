@@ -8,20 +8,17 @@ pub fn init() {
 }
 
 #[repr(C)]
-struct Serial {
+pub struct Serial {
     ports: [Option<u16>; 4],
 }
-
-/// Provides mutually exclusive global access to serial ports from COM1 to COM4
-pub static SERIAL: LockCell<Serial> = LockCell::new( Serial { ports: [None; 4] });
 
 impl Serial {
     /// Initialize all found serial ports. This will initialize each port exactly once, regardless
     /// of how many times it is called. The only way to re-initialize is to drop the `SERIAL`,
     /// which means exiting the binary.
-    pub fn init() {
-        // Lock the ports, such that no one can access them
-        let mut serial = SERIAL.lock();
+    pub fn init() -> Self {
+        // Initialize all the ports as `None`
+        let mut serial = Self { ports: [None; 4] };
         // Go to the known address of where the COM port addresses are stored
         let com_ptr: *const u16 = 0x0400 as *const u16;
 
@@ -36,6 +33,7 @@ impl Serial {
             init_serial(port_addr);
             *port = Some(port_addr);
         }
+        serial
     }
     // Broadcast write `bytes` to all known and initialized serial ports
     fn write_bytes(&mut self, bytes: &[u8]) {
@@ -49,7 +47,7 @@ impl Serial {
     }
 
     // Broadcast write `text` to all known and initialized serial ports
-    fn write_str(&mut self, text: &str) {
+    pub fn write_str(&mut self, text: &str) {
         self.write_bytes(text.as_bytes());
     }
 }
@@ -71,15 +69,15 @@ fn init_serial(port: u16) {
     // RTS/DTR set
     out_u8(port.saturating_add(4), 0x03);
     // Enable loopback mode in Modem Control Register, in order to test the port
-    out_u8(port.saturating_add(4), 0b11110);
+    //out_u8(port.saturating_add(4), 0b11110);
 
     // Wait until we can transmit bytes
-    write_data(port, b'M');
+    //write_data(port, b'M');
 
     // Wait until we can read
-    while data_ready(port) == 0 {}
+    //while data_ready(port) == 0 {}
     // Test we got the same byte
-    assert!(in_u8(port) == b'M');
+    //assert!(in_u8(port) == b'M');
 
     // If the serial is not faulty, set it in normal operation mode
     out_u8(port.saturating_add(4), 0x0f);
@@ -111,31 +109,3 @@ fn write(port: u16, value: u8) {
     write_data(port, value);
 }
 
-/// Writer for serial
-#[repr(C)]
-pub struct SerialWriter;
-
-impl core::fmt::Write for SerialWriter {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        SERIAL.lock().write_str(s);
-        Ok(())
-    }
-}
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => {
-        let _ = core::fmt::Write::write_fmt(&mut $crate::SerialWriter, core::format_args!($($arg)*));
-    };
-}
-
-#[macro_export]
-macro_rules! println {
-    () => {
-        $crate::print!("\n")
-    };
-    ($($arg:tt)*) => {
-        let _ = core::fmt::Write::write_fmt(&mut $crate::SerialWriter,
-            core::format_args!("{}\n", core::format_args!($($arg)*)));
-    };
-}

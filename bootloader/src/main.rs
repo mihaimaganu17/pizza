@@ -9,7 +9,6 @@ mod error;
 
 use core::panic::PanicInfo;
 use cpu::x86;
-use serial::println;
 use parse_pe::Pe;
 use mmu::{PML4, VirtualAddress, PageSize, RWX};
 use state::BootState;
@@ -17,14 +16,19 @@ use sync::LockCell;
 
 pub static BOOT_STATE: BootState = BootState {
     mmu: LockCell::new(None),
+    serial: LockCell::new(None),
 };
 
 extern crate alloc;
 
 #[no_mangle]
 extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u32) {
-    // Initialize serial ports
-    serial::init();
+    {
+        let mut serial_lock = BOOT_STATE.serial.lock();
+        if serial_lock.is_none() {
+            *serial_lock = Some(serial::Serial::init());
+        }
+    }
     // Initialize memory
     memory::init();
 
@@ -82,7 +86,7 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         extern {
             fn enter_ia32e(entry_point: u64, stack: u64, param: u64, cr3: u32) -> !;
         }
-        serial::println!("Boot state {:#x?}", &BOOT_STATE as *const BootState as u64);
+        println!("Boot state {:#x?}", &BOOT_STATE as *const BootState as u64);
         enter_ia32e(entry_point, stack, &BOOT_STATE as *const BootState as u64, cr3);
     }
 }
@@ -98,4 +102,35 @@ fn panic(info: &PanicInfo) -> ! {
     // Print the message for the panic
     println!("{:?}", info.message());
     x86::halt()
+}
+
+/// Writer for serial
+#[repr(C)]
+pub struct SerialWriter;
+
+impl core::fmt::Write for SerialWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        if let Some(serial) = BOOT_STATE.serial.lock().as_mut() {
+            serial.write_str(s);
+        }
+        Ok(())
+    }
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {
+        let _ = core::fmt::Write::write_fmt(&mut $crate::SerialWriter, core::format_args!($($arg)*));
+    };
+}
+
+#[macro_export]
+macro_rules! println {
+    () => {
+        $crate::print!("\n")
+    };
+    ($($arg:tt)*) => {
+        let _ = core::fmt::Write::write_fmt(&mut $crate::SerialWriter,
+            core::format_args!("{}\n", core::format_args!($($arg)*)));
+    };
 }
