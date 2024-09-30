@@ -19,8 +19,9 @@ extern "C" fn entry(boot_state: &'static BootState) {
     screen.iter_mut().for_each(|x| *x = 0x0f75);
 
     {
-        //let v = alloc::vec![b'\xbb'; 100];
-        //serial::println!("{:#x?}", v.get(..));
+        extern crate alloc;
+        let v = alloc::vec![b'\xbb'; 100];
+        println!("{:#x?}", v.get(..));
     }
     println!("{:#?}", "TOO MANY BALLS");
     x86::halt();

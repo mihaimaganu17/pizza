@@ -77,7 +77,6 @@ extern "C" fn entry(_bootloader_start: u32, _bootloader_end: u32, _stack_addr: u
         ).expect("Failed to map a stack");
             (pml4.cr3().0 as u32, 0xb00_0000_0000 + 8192, kernel.entry_point())
         };
-        drop(phys_mem_lock);
 
         (cr3, stack, entry_point)
     };

@@ -1,6 +1,5 @@
 #![no_std]
 //! A serial port implementation as described in https://wiki.osdev.org/Serial_Ports
-use sync::LockCell;
 use cpu::x86::{out_u8, in_u8};
 
 pub fn init() {
@@ -46,7 +45,7 @@ impl Serial {
         }
     }
 
-    // Broadcast write `text` to all known and initialized serial ports
+    /// Broadcast write `text` to all known and initialized serial ports
     pub fn write_str(&mut self, text: &str) {
         self.write_bytes(text.as_bytes());
     }
@@ -69,15 +68,15 @@ fn init_serial(port: u16) {
     // RTS/DTR set
     out_u8(port.saturating_add(4), 0x03);
     // Enable loopback mode in Modem Control Register, in order to test the port
-    //out_u8(port.saturating_add(4), 0b11110);
+    out_u8(port.saturating_add(4), 0b11110);
 
     // Wait until we can transmit bytes
-    //write_data(port, b'M');
+    write_data(port, b'M');
 
     // Wait until we can read
-    //while data_ready(port) == 0 {}
+    while data_ready(port) == 0 {}
     // Test we got the same byte
-    //assert!(in_u8(port) == b'M');
+    assert!(in_u8(port) == b'M');
 
     // If the serial is not faulty, set it in normal operation mode
     out_u8(port.saturating_add(4), 0x0f);

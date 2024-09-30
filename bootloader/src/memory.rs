@@ -90,6 +90,11 @@ pub fn init() -> Option<()> {
                 let length = ((addr_range.length_high as u64) << 32) | addr_range.length_low as u64;
                 // We are substracting 1 here because we use `RangeInclusive`
                 let end = start.saturating_add(length.saturating_sub(1));
+                // This is a special type of memory allocated by qemu to comply with some AMD
+                // graphics mapping
+                if start == 0x1_0000_0000 && end == 0x1_3fff_ffff {
+                    continue;
+                }
                 // Create a new range
                 let entry = RangeInclusive::new(start, end);
 

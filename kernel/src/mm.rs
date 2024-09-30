@@ -15,7 +15,13 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         let mut phys_mem_lock = BOOT_STATE.unwrap().mmu.lock();
 
         let ptr = phys_mem_lock.as_mut()
-            .and_then(|mmu| mmu.allocate(layout.size() as u64, layout.align() as u64))
+            .and_then(|mmu| {
+                // This currently works because we have an identity map from the bootloader. If
+                // we would not have an identity map, this allocation had to be mapped into the
+                // page table as well
+                let ptr = mmu.allocate(layout.size() as u64, layout.align() as u64);
+                ptr
+            })
             .unwrap_or(0) as *mut u8;
         ptr
     }
