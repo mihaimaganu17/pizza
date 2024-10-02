@@ -1,5 +1,4 @@
 //! Memory manager module for the kernel
-use crate::BOOT_STATE;
 use core::alloc::{Layout, GlobalAlloc};
 use core::ops::RangeInclusive;
 
@@ -12,7 +11,7 @@ static ALLOCATOR: GlobalAllocator = GlobalAllocator;
 
 unsafe impl GlobalAlloc for GlobalAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let mut phys_mem_lock = BOOT_STATE.unwrap().mmu.lock();
+        let mut phys_mem_lock = crate::core!().state.mmu.lock();
 
         let ptr = phys_mem_lock.as_mut()
             .and_then(|mmu| {
@@ -30,7 +29,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         if layout.size() == 0 {
             return;
         }
-        let mut phys_mem_lock = BOOT_STATE.unwrap().mmu.lock();
+        let mut phys_mem_lock = crate::core!().state.mmu.lock();
         let ptr = ptr as u64;
         let end = ptr.saturating_add(layout.size() as u64).saturating_sub(1);
         // Compute the range to be deallocated

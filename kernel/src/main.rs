@@ -3,16 +3,21 @@
 
 mod compiler_builtins;
 mod mm;
+mod tls;
 
 use cpu::x86;
 use core::panic::PanicInfo;
 use state::BootState;
 
-pub static mut BOOT_STATE: Option<&'static BootState> = None;
-
 #[no_mangle]
 extern "C" fn entry(boot_state: &'static BootState) {
-    unsafe { BOOT_STATE = Some(boot_state); }
+    // Initialise the current local core storage
+    tls::init(boot_state);
+
+    unsafe {
+        println!("ID: {:x?}", core!().id());
+    }
+
     let screen = unsafe {
         core::slice::from_raw_parts_mut(0xb8000 as *mut u16, 80 * 25)
     };
@@ -20,7 +25,7 @@ extern "C" fn entry(boot_state: &'static BootState) {
 
     {
         extern crate alloc;
-        let v = alloc::vec![b'\xbb'; 100];
+        let v = alloc::vec![b'\xbb'; 5];
         println!("{:#x?}", v.get(..));
     }
     println!("{:#?}", "TOO MANY BALLS");
@@ -46,7 +51,7 @@ pub struct SerialWriter;
 
 impl core::fmt::Write for SerialWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        if let Some(serial) = unsafe { BOOT_STATE.unwrap().serial.lock().as_mut() } {
+        if let Some(serial) = unsafe { core!().state.serial.lock().as_mut() } {
             serial.write_str(s);
         }
         Ok(())
