@@ -59,6 +59,16 @@ pub unsafe fn write_gs_base(value: u64) {
     wrmsr(value, IA32_GS_BASE);
 }
 
+/// CPUID instruction that is executed based on the value in the `EAX` register and returns through
+/// `EAX` the result.
+#[inline]
+pub unsafe fn cpuid(eax: u32) -> u32 {
+    let tmp_eax;
+    let ecx = 0u32;
+    asm!("cpuid", in("eax") eax, lateout("eax") tmp_eax);
+    tmp_eax
+}
+
 /// Disable interrupts and halt forever
 pub fn halt() -> ! {
     loop {

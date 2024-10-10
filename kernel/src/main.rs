@@ -31,12 +31,13 @@ extern "C" fn entry(boot_state: &'static BootState) {
     // Read the APIC base msr
     let apic_msr = unsafe { x86::rdmsr(x86::IA32_APIC_BASE) };
     // Check if the APIC is present
-    let is_lapic_present: bool = (apic_base >> 11) & 1;
-    if is_lapic_present {
+    let is_lapic_present: bool = ((apic_msr >> 11) & 1) != 0;
+    if !is_lapic_present {
         panic!("Local APIC not present!");
     }
     // Get the memory-mapped physical address of the Local APIC
-    let apic_base = ((apic_base >> 12) & 0xff_ffff) << 12;
+    let apic_base = ((apic_msr >> 12) & 0xff_ffff) << 12;
+    println!("CPUID {:#x?}", unsafe { x86::cpuid(0x1u32) });
     println!("{:#?}", "TOO MANY BALLS");
     x86::halt();
 }
